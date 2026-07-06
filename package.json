@@ -1,0 +1,47 @@
+{
+  "name": "florin",
+  "displayName": "Florin",
+  "description": "Portable database connections + query library for VS Code, synced across machines via your account. Passwords stay in the OS keychain.",
+  "version": "0.0.1",
+  "publisher": "asutoshpanda",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/75asu/florin.git"
+  },
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "florin.addConnectionFromUrl",
+        "title": "Florin: Add Connection from URL"
+      },
+      {
+        "command": "florin.listConnections",
+        "title": "Florin: List Connections"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package -o florin.vsix",
+    "vscode:prepublish": "npm run compile",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.4.0",
+    "@commitlint/config-conventional": "^19.4.0",
+    "@types/node": "^22.0.0",
+    "@types/vscode": "^1.90.0",
+    "@vscode/vsce": "^3.1.0",
+    "husky": "^9.1.0",
+    "typescript": "^5.5.0"
+  }
+}

@@ -1,0 +1,58 @@
+name: release
+
+# Set-and-forget release, like ducat:
+#   - conventional commits on main -> release-please maintains a Release PR
+#     (bumps package.json version + writes CHANGELOG.md).
+#   - merge the Release PR -> tag vX.Y.Z + GitHub Release created.
+#   - that release triggers the publish job: package the .vsix, attach it to the
+#     release, and publish to the VS Code Marketplace + Open VSX (if tokens set).
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.rp.outputs.release_created }}
+      tag_name: ${{ steps.rp.outputs.tag_name }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: rp
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  publish:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ needs.release-please.outputs.tag_name }}
+      VSCE_PAT: ${{ secrets.VSCE_PAT }}
+      OVSX_PAT: ${{ secrets.OVSX_PAT }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - run: npm run compile
+      - name: Package .vsix
+        run: npm run package
+      - name: Attach .vsix to the GitHub Release
+        run: gh release upload "$TAG" florin.vsix --clobber
+      - name: Publish to VS Code Marketplace
+        if: ${{ env.VSCE_PAT != '' }}
+        run: npx --no -- vsce publish --packagePath florin.vsix -p "$VSCE_PAT"
+      - name: Publish to Open VSX
+        if: ${{ env.OVSX_PAT != '' }}
+        run: npx --yes ovsx publish florin.vsix -p "$OVSX_PAT"

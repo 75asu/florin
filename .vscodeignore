@@ -1,0 +1,16 @@
+.vscode/**
+.vscode-test/**
+src/**
+node_modules/**
+.github/**
+.husky/**
+.gitignore
+.vscodeignore
+release-please-config.json
+.release-please-manifest.json
+commitlint.config.js
+CONTRIBUTING.md
+package-lock.json
+*.vsix
+**/*.map
+**/tsconfig.json
