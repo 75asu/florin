@@ -17,16 +17,63 @@
   ],
   "main": "./out/extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "florin",
+          "title": "Florin",
+          "icon": "media/florin.svg"
+        }
+      ]
+    },
+    "views": {
+      "florin": [
+        {
+          "id": "florin.connections",
+          "name": "Connections",
+          "icon": "media/florin.svg"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "florin.connections",
+        "contents": "No database connections yet.\n[Add Connection from URL](command:florin.addConnectionFromUrl)"
+      }
+    ],
     "commands": [
       {
         "command": "florin.addConnectionFromUrl",
-        "title": "Florin: Add Connection from URL"
+        "title": "Add Connection from URL",
+        "category": "Florin",
+        "icon": "$(add)"
       },
       {
         "command": "florin.listConnections",
-        "title": "Florin: List Connections"
+        "title": "List Connections",
+        "category": "Florin"
+      },
+      {
+        "command": "florin.refresh",
+        "title": "Refresh",
+        "category": "Florin",
+        "icon": "$(refresh)"
       }
-    ]
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "florin.addConnectionFromUrl",
+          "when": "view == florin.connections",
+          "group": "navigation"
+        },
+        {
+          "command": "florin.refresh",
+          "when": "view == florin.connections",
+          "group": "navigation"
+        }
+      ]
+    }
   },
   "scripts": {
     "compile": "tsc -p ./",
