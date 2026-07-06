@@ -32,6 +32,7 @@
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "package": "vsce package -o florin.vsix",
+    "install:local": "npm run package && code --install-extension florin.vsix --force",
     "vscode:prepublish": "npm run compile",
     "prepare": "husky"
   },
