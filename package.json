@@ -1,8 +1,8 @@
 {
   "name": "florin",
   "displayName": "Florin",
-  "description": "Portable database connections + query library for VS Code, synced across machines via your account. Passwords stay in the OS keychain.",
-  "version": "0.0.1",
+  "description": "Portable database workbench for VS Code: browse, query, and sync your connections + saved queries to a Git repo you own. Passwords stay in the OS keychain.",
+  "version": "0.1.0",
   "publisher": "asutoshpanda",
   "license": "MIT",
   "repository": {
@@ -49,47 +49,159 @@
         "icon": "$(add)"
       },
       {
-        "command": "florin.listConnections",
-        "title": "List Connections",
-        "category": "Florin"
-      },
-      {
         "command": "florin.refresh",
         "title": "Refresh",
         "category": "Florin",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "florin.previewTable",
+        "title": "Preview Rows",
+        "category": "Florin",
+        "icon": "$(eye)"
+      },
+      {
+        "command": "florin.renameConnection",
+        "title": "Rename Connection",
+        "category": "Florin",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "florin.deleteConnection",
+        "title": "Remove Connection",
+        "category": "Florin",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "florin.newQuery",
+        "title": "New Query",
+        "category": "Florin",
+        "icon": "$(notebook)"
+      },
+      {
+        "command": "florin.openSavedQuery",
+        "title": "Open Saved Query",
+        "category": "Florin",
+        "icon": "$(bookmark)"
+      },
+      {
+        "command": "florin.configureVault",
+        "title": "Configure Vault (Sync)",
+        "category": "Florin",
+        "icon": "$(cloud)"
       }
     ],
+    "configuration": {
+      "title": "Florin",
+      "properties": {
+        "florin.vault.path": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Absolute path to a Git repo folder Florin syncs connections and queries to. Leave empty to keep everything on this machine only."
+        },
+        "florin.vault.subdir": {
+          "type": "string",
+          "default": "florin",
+          "description": "Subdirectory inside the vault repo where Florin writes its files."
+        },
+        "florin.vault.autoSync": {
+          "type": "boolean",
+          "default": true,
+          "description": "Pull the vault on window focus and commit+push automatically when connections or queries change."
+        }
+      }
+    },
     "menus": {
       "view/title": [
         {
           "command": "florin.addConnectionFromUrl",
           "when": "view == florin.connections",
-          "group": "navigation"
+          "group": "navigation@1"
+        },
+        {
+          "command": "florin.openSavedQuery",
+          "when": "view == florin.connections",
+          "group": "navigation@2"
         },
         {
           "command": "florin.refresh",
           "when": "view == florin.connections",
-          "group": "navigation"
+          "group": "navigation@3"
+        },
+        {
+          "command": "florin.configureVault",
+          "when": "view == florin.connections",
+          "group": "1_vault@1"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "florin.previewTable",
+          "when": "view == florin.connections && viewItem == florin.table",
+          "group": "inline"
+        },
+        {
+          "command": "florin.previewTable",
+          "when": "view == florin.connections && viewItem == florin.table",
+          "group": "0_preview@1"
+        },
+        {
+          "command": "florin.newQuery",
+          "when": "view == florin.connections && viewItem == florin.table",
+          "group": "0_preview@2"
+        },
+        {
+          "command": "florin.newQuery",
+          "when": "view == florin.connections && (viewItem == florin.connection || viewItem == florin.database)",
+          "group": "inline@1"
+        },
+        {
+          "command": "florin.renameConnection",
+          "when": "view == florin.connections && viewItem == florin.connection",
+          "group": "inline@2"
+        },
+        {
+          "command": "florin.newQuery",
+          "when": "view == florin.connections && (viewItem == florin.connection || viewItem == florin.database)",
+          "group": "1_query@1"
+        },
+        {
+          "command": "florin.renameConnection",
+          "when": "view == florin.connections && viewItem == florin.connection",
+          "group": "1_manage@1"
+        },
+        {
+          "command": "florin.deleteConnection",
+          "when": "view == florin.connections && viewItem == florin.connection",
+          "group": "1_manage@2"
         }
       ]
     }
   },
   "scripts": {
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./",
+    "compile": "node esbuild.js",
+    "watch": "node esbuild.js --watch",
+    "check-types": "tsc --noEmit",
     "package": "vsce package -o florin.vsix",
     "install:local": "npm run package && code --install-extension florin.vsix --force",
-    "vscode:prepublish": "npm run compile",
+    "vscode:prepublish": "npm run check-types && node esbuild.js --production",
     "prepare": "husky"
+  },
+  "dependencies": {
+    "pg": "^8.13.0"
   },
   "devDependencies": {
     "@commitlint/cli": "^19.4.0",
     "@commitlint/config-conventional": "^19.4.0",
     "@types/node": "^22.0.0",
+    "@types/pg": "^8.11.0",
     "@types/vscode": "^1.90.0",
     "@vscode/vsce": "^3.1.0",
+    "esbuild": "^0.23.0",
     "husky": "^9.1.0",
     "typescript": "^5.5.0"
+  },
+  "allowScripts": {
+    "esbuild@0.23.1": true
   }
 }

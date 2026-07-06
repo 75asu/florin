@@ -9,6 +9,7 @@ node_modules/**
 release-please-config.json
 .release-please-manifest.json
 commitlint.config.js
+esbuild.js
 CONTRIBUTING.md
 package-lock.json
 *.vsix

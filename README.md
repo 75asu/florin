@@ -1,27 +1,63 @@
 # Florin
 
-Portable database **connections + query library** for VS Code, synced across your machines via your VS Code (GitHub) account. Passwords stay in the OS keychain, never synced, never in git.
+A portable database workbench for VS Code. Browse your databases, run queries, and keep your **connections + saved queries** in a Git repo *you* own, so they follow you across machines, environments, and jobs. Passwords stay in the OS keychain, never synced, never in Git.
 
-## Why
-Beekeeper's connection sync is a paid feature; SQLTools has no "import from URL" and its config is not cleanly portable. Florin keeps *your* connections and queries with *your* account, so they follow you across machines, environments, and jobs, owned by you.
+## Install (one command)
 
-## How the sync works
-- Connection metadata + the query library are stored in the extension's `globalState`, opted into **VS Code Settings Sync** (`setKeysForSync`), so they ride your account.
-- Passwords are stored in the OS keychain via `SecretStorage`, which deliberately does not sync.
+```bash
+curl -fsSL https://github.com/75asu/florin/releases/latest/download/florin.vsix -o /tmp/florin.vsix && code --install-extension /tmp/florin.vsix
+```
 
-## v0 (current)
-- `Florin: Add Connection from URL` , paste a `postgresql://user:pass@host:port/db` URL; the connection is stored (metadata synced, password in keychain).
-- `Florin: List Connections`.
+Reload VS Code. On first launch Florin asks where to sync (see below). Florin is distributed via GitHub Releases, not a marketplace, so there is no auto-update, re-run the command to upgrade.
 
-## Roadmap
-- Query library organized by connection / environment (synced).
-- Run queries (delegate to SQLTools first, then an optional bundled driver).
-- Additional drivers (MySQL, etc.).
+## First run , pick your sync
+
+A dialog offers three choices:
+- **Choose Folder** , point Florin at a Git repo you already have (e.g. your notes repo). Florin writes into a `florin/` subfolder so it never litters the root.
+- **Clone GitHub Repo** , give `owner/repo`; Florin clones it and uses it as the vault.
+- **Keep Local** , skip syncing; connections and queries live only on this machine.
+
+You can change this anytime with **Florin: Configure Vault (Sync)**.
+
+## How sync works
+
+Everything except passwords is stored as plain, browsable files in your repo:
+
+```
+<your-repo>/florin/
+  manifest.json
+  connections/<name>.<id>.json     # driver/host/port/user/db  ,  NO password
+  queries/<group>/<name>.sql       # your saved query library
+```
+
+- On change (add/rename/remove a connection, save a query) Florin commits and pushes automatically.
+- On window focus and startup it pulls the latest, so the vault is always the source of truth.
+- It shells out to your own `git`, inheriting the repo's auth and identity. No tokens are stored.
+- **Passwords** live in the OS keychain via `SecretStorage`. On a new machine the connection appears from the vault; you enter its password once and it is cached locally. Passwords are never written to Git or synced.
+
+## What you can do
+
+- **Add Connection from URL** , paste `postgresql://user:pass@host:port/db`; metadata is saved, password goes to the keychain.
+- **Browse** connection , database , schema , table , columns (via `pg_catalog`, so it works regardless of grants).
+- **Preview Rows** , right-click a table (or the eye icon) for a data grid.
+- **Query console** , New Query opens a SQL editor with a results grid below; `Cmd/Ctrl+Enter` runs. **Save** files the query into your vault; **Open Saved Query** loads one back.
+- **Rename / Remove** connections; give each a friendly name.
+
+Postgres today; the driver layer is engine-agnostic so more engines can follow.
+
+## Settings
+
+| Setting | Default | Purpose |
+| --- | --- | --- |
+| `florin.vault.path` | `""` | Git repo folder to sync to. Empty = local only. |
+| `florin.vault.subdir` | `florin` | Subfolder inside the repo where Florin writes. |
+| `florin.vault.autoSync` | `true` | Auto pull on focus and commit+push on change. |
 
 ## Develop
+
 ```bash
 npm install
-# then press F5 in VS Code to launch the Extension Development Host
+# press F5 in VS Code to launch the Extension Development Host
 ```
 
 ## License
