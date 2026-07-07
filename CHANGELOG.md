@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/75asu/florin/compare/v0.1.0...v0.2.0) (2026-07-07)
+
+
+### Features
+
+* schema-aware SQL editor with CodeMirror autocomplete and highlighting ([4fa6b40](https://github.com/75asu/florin/commit/4fa6b405128bc3be06bbf60e37a8fad70b9f3011))
+
 ## [0.1.0](https://github.com/75asu/florin/compare/v0.0.1...v0.1.0) (2026-07-06)
 
 
