@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import * as path from 'path';
 import { ConnectionStore, Connection } from './store';
 import { ExplorerProvider } from './tree';
+import { QueriesProvider } from './queriesTree';
 import { QueryConsole } from './console';
 import { Vault } from './vault';
 import type { FlorinNode } from './drivers/types';
@@ -14,17 +15,22 @@ export function activate(context: vscode.ExtensionContext) {
   const vault = new Vault();
   const store = new ConnectionStore(context, vault);
   const explorer = new ExplorerProvider(store);
+  const queries = new QueriesProvider(vault);
   const queryConsole = QueryConsole.get(store, vault, context.extensionUri);
 
   const refreshFromVault = async () => {
     await store.loadFromVault();
     explorer.refresh();
+    queries.refresh();
   };
 
   context.subscriptions.push(
     vscode.window.registerTreeDataProvider('florin.connections', explorer),
+    vscode.window.registerTreeDataProvider('florin.queries', queries),
     vscode.commands.registerCommand('florin.addConnectionFromUrl', () => addConnectionFromUrl(store, explorer)),
     vscode.commands.registerCommand('florin.refresh', () => refreshFromVault()),
+    vscode.commands.registerCommand('florin.refreshQueries', () => queries.refresh()),
+    vscode.commands.registerCommand('florin.openQueryItem', (node: { sql?: string }) => queryConsole.openWithSql(node?.sql ?? '')),
     vscode.commands.registerCommand('florin.previewTable', (node: FlorinNode) => queryConsole.openPreview(node)),
     vscode.commands.registerCommand('florin.renameConnection', (node: FlorinNode) => renameConnection(store, explorer, node)),
     vscode.commands.registerCommand('florin.deleteConnection', (node: FlorinNode) => deleteConnection(store, explorer, node)),

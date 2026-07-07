@@ -32,6 +32,11 @@
           "id": "florin.connections",
           "name": "Connections",
           "icon": "media/florin.svg"
+        },
+        {
+          "id": "florin.queries",
+          "name": "Saved Queries",
+          "icon": "media/florin.svg"
         }
       ]
     },
@@ -39,6 +44,10 @@
       {
         "view": "florin.connections",
         "contents": "No database connections yet.\n[Add Connection from URL](command:florin.addConnectionFromUrl)"
+      },
+      {
+        "view": "florin.queries",
+        "contents": "No saved queries yet.\nRun a query in the console and press Save to file it here.\n[Configure Vault (Sync)](command:florin.configureVault)"
       }
     ],
     "commands": [
@@ -89,6 +98,17 @@
         "title": "Configure Vault (Sync)",
         "category": "Florin",
         "icon": "$(cloud)"
+      },
+      {
+        "command": "florin.refreshQueries",
+        "title": "Refresh Saved Queries",
+        "category": "Florin",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "florin.openQueryItem",
+        "title": "Open Query",
+        "category": "Florin"
       }
     ],
     "configuration": {
@@ -132,6 +152,16 @@
           "command": "florin.configureVault",
           "when": "view == florin.connections",
           "group": "1_vault@1"
+        },
+        {
+          "command": "florin.openSavedQuery",
+          "when": "view == florin.queries",
+          "group": "navigation@1"
+        },
+        {
+          "command": "florin.refreshQueries",
+          "when": "view == florin.queries",
+          "group": "navigation@2"
         }
       ],
       "view/item/context": [

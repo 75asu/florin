@@ -161,7 +161,17 @@ export class QueryConsole {
     }
     await this.vault.saveQuery(group, name, sql);
     this.vault.scheduleSync(`florin: save query ${group}/${name}`);
+    void vscode.commands.executeCommand('florin.refreshQueries');
     vscode.window.showInformationMessage(`Florin: saved query "${name}".`);
+  }
+
+  // Load a saved query's SQL into the console (from the Saved Queries tree).
+  async openWithSql(sql: string): Promise<void> {
+    const target = this.target ?? (await this.pickTarget());
+    if (!target) {
+      return;
+    }
+    this.reveal(target, { seedSql: sql, autoRun: false });
   }
 
   // Pick a saved query from the vault and load it into the console editor.
