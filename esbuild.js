@@ -24,28 +24,48 @@ const watchLogPlugin = {
   },
 };
 
+// The extension runs in Node (host); vscode is provided at runtime.
+const extensionConfig = {
+  entryPoints: ['src/extension.ts'],
+  bundle: true,
+  format: 'cjs',
+  platform: 'node',
+  target: 'node18',
+  outfile: 'out/extension.js',
+  external: ['vscode'],
+  minify: production,
+  sourcemap: !production,
+  sourcesContent: false,
+  logLevel: 'silent',
+  plugins: [watchLogPlugin],
+};
+
+// The query-console editor runs in the webview (browser); CodeMirror is bundled
+// into a single self-contained asset so the webview needs no CDN (CSP-safe).
+const webviewConfig = {
+  entryPoints: ['src/webview/editor.ts'],
+  bundle: true,
+  format: 'iife',
+  platform: 'browser',
+  target: 'es2020',
+  outfile: 'media/editor.js',
+  minify: production,
+  sourcemap: !production,
+  sourcesContent: false,
+  logLevel: 'silent',
+  plugins: [watchLogPlugin],
+};
+
 async function main() {
-  const ctx = await esbuild.context({
-    entryPoints: ['src/extension.ts'],
-    bundle: true,
-    format: 'cjs',
-    platform: 'node',
-    target: 'node18',
-    outfile: 'out/extension.js',
-    // vscode is provided by the host at runtime, never bundle it.
-    external: ['vscode'],
-    minify: production,
-    sourcemap: !production,
-    sourcesContent: false,
-    logLevel: 'silent',
-    plugins: [watchLogPlugin],
-  });
+  const ext = await esbuild.context(extensionConfig);
+  const web = await esbuild.context(webviewConfig);
 
   if (watch) {
-    await ctx.watch();
+    await Promise.all([ext.watch(), web.watch()]);
   } else {
-    await ctx.rebuild();
-    await ctx.dispose();
+    await Promise.all([ext.rebuild(), web.rebuild()]);
+    await ext.dispose();
+    await web.dispose();
   }
 }
 

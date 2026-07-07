@@ -14,7 +14,7 @@ export function activate(context: vscode.ExtensionContext) {
   const vault = new Vault();
   const store = new ConnectionStore(context, vault);
   const explorer = new ExplorerProvider(store);
-  const queryConsole = QueryConsole.get(store, vault);
+  const queryConsole = QueryConsole.get(store, vault, context.extensionUri);
 
   const refreshFromVault = async () => {
     await store.loadFromVault();

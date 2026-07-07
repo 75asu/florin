@@ -25,6 +25,9 @@ export interface QueryResult {
   rowCount: number;
 }
 
+// table (or schema.table) -> its column names, for editor autocomplete.
+export type SchemaMap = Record<string, string[]>;
+
 export interface Driver {
   // Given a node, return the next level down. Called lazily as the user expands.
   children(node: FlorinNode): Promise<FlorinNode[]>;
@@ -32,4 +35,6 @@ export interface Driver {
   preview(node: FlorinNode, limit: number): Promise<QueryResult>;
   // Run arbitrary SQL against a specific database (the query editor).
   query(database: string, sql: string): Promise<QueryResult>;
+  // Full table+column map of a database, for autocomplete.
+  schema(database: string): Promise<SchemaMap>;
 }

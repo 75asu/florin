@@ -1,5 +1,7 @@
 node_modules/
 out/
 dist/
+media/editor.js
+media/editor.js.map
 *.vsix
 .DS_Store

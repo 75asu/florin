@@ -1,6 +1,6 @@
 import { Client } from 'pg';
 import type { Connection } from '../store';
-import type { Driver, FlorinNode, QueryResult } from './types';
+import type { Driver, FlorinNode, QueryResult, SchemaMap } from './types';
 
 // Postgres driver, in-process (no language server). One short-lived Client per
 // query keeps it simple; pooling can come later if it matters. Postgres
@@ -41,6 +41,28 @@ export class PgDriver implements Driver {
 
   query(database: string, sql: string): Promise<QueryResult> {
     return this.withClient(database, (client) => this.exec(client, sql));
+  }
+
+  async schema(database: string): Promise<SchemaMap> {
+    const rows = await this.run<{ nspname: string; relname: string; attname: string }>(
+      database,
+      `SELECT n.nspname, c.relname, a.attname
+       FROM pg_catalog.pg_class c
+       JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+       JOIN pg_catalog.pg_attribute a ON a.attrelid = c.oid
+       WHERE c.relkind IN ('r', 'p', 'v', 'm', 'f')
+         AND a.attnum > 0 AND NOT a.attisdropped
+         AND n.nspname NOT LIKE 'pg_%' AND n.nspname <> 'information_schema'
+       ORDER BY n.nspname, c.relname, a.attnum`,
+    );
+    const map: SchemaMap = {};
+    for (const r of rows) {
+      // Expose both the bare table and schema-qualified names for completion.
+      (map[r.relname] ??= []).push(r.attname);
+      const qualified = `${r.nspname}.${r.relname}`;
+      (map[qualified] ??= []).push(r.attname);
+    }
+    return map;
   }
 
   private async exec(client: Client, sql: string, params: unknown[] = []): Promise<QueryResult> {

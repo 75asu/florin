@@ -3,7 +3,7 @@ import { randomUUID } from 'crypto';
 import { ConnectionStore } from './store';
 import { Vault } from './vault';
 import { getDriver } from './drivers';
-import type { FlorinNode } from './drivers/types';
+import type { FlorinNode, SchemaMap } from './drivers/types';
 
 // Max rows rendered in the grid. The query still runs fully server-side (guarded
 // by statement_timeout); this just bounds what we paint.
@@ -21,15 +21,19 @@ export class QueryConsole {
   private static instance: QueryConsole | undefined;
   private panel: vscode.WebviewPanel | undefined;
   private target: Target | undefined;
+  // Cache the table/column map per connection+database so autocomplete is instant
+  // after the first fetch.
+  private schemaCache = new Map<string, SchemaMap>();
 
   private constructor(
     private readonly store: ConnectionStore,
     private readonly vault: Vault,
+    private readonly extensionUri: vscode.Uri,
   ) {}
 
-  static get(store: ConnectionStore, vault: Vault): QueryConsole {
+  static get(store: ConnectionStore, vault: Vault, extensionUri: vscode.Uri): QueryConsole {
     if (!QueryConsole.instance) {
-      QueryConsole.instance = new QueryConsole(store, vault);
+      QueryConsole.instance = new QueryConsole(store, vault, extensionUri);
     }
     return QueryConsole.instance;
   }
@@ -87,6 +91,32 @@ export class QueryConsole {
       seedSql: opts.seedSql,
       autoRun: opts.autoRun,
     });
+    void this.sendSchema(target);
+  }
+
+  // Fetch (and cache) the DB's table/column map and hand it to the editor for
+  // autocomplete. Best-effort: failure just means keyword-only completion.
+  private async sendSchema(target: Target): Promise<void> {
+    const key = `${target.connectionId}:${target.database}`;
+    const cached = this.schemaCache.get(key);
+    if (cached) {
+      this.post({ type: 'schema', schema: cached });
+      return;
+    }
+    const conn = this.store.get(target.connectionId);
+    if (!conn) {
+      return;
+    }
+    try {
+      const driver = getDriver(conn, await this.store.password(conn.id));
+      const schema = await driver.schema(target.database);
+      this.schemaCache.set(key, schema);
+      if (this.target?.connectionId === target.connectionId && this.target?.database === target.database) {
+        this.post({ type: 'schema', schema });
+      }
+    } catch {
+      /* keyword-only completion is fine */
+    }
   }
 
   private ensurePanel(): vscode.WebviewPanel {
@@ -96,6 +126,7 @@ export class QueryConsole {
     const panel = vscode.window.createWebviewPanel('florin.console', 'Florin Query', vscode.ViewColumn.Active, {
       enableScripts: true,
       retainContextWhenHidden: true,
+      localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, 'media')],
     });
     panel.webview.html = this.html(panel.webview);
     panel.webview.onDidReceiveMessage((msg: { type: string; sql?: string }) => this.onMessage(msg));
@@ -151,21 +182,11 @@ export class QueryConsole {
     if (!pick) {
       return;
     }
-    if (!this.target) {
-      const t = await this.pickTarget();
-      if (!t) {
-        return;
-      }
-      this.target = t;
+    const target = this.target ?? (await this.pickTarget());
+    if (!target) {
+      return;
     }
-    const panel = this.ensurePanel();
-    panel.reveal(vscode.ViewColumn.Active, false);
-    panel.webview.postMessage({
-      type: 'setTarget',
-      label: `${this.target.connName} · ${this.target.database}`,
-      seedSql: pick.q.sql,
-      autoRun: false,
-    });
+    this.reveal(target, { seedSql: pick.q.sql, autoRun: false });
   }
 
   private async onMessage(msg: { type: string; sql?: string }): Promise<void> {
@@ -218,6 +239,7 @@ export class QueryConsole {
 
   private html(webview: vscode.Webview): string {
     const nonce = randomUUID().replace(/-/g, '');
+    const editorUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'media', 'editor.js'));
     const csp = [
       "default-src 'none'",
       "style-src 'unsafe-inline'",
@@ -257,16 +279,9 @@ export class QueryConsole {
     border: 1px solid var(--vscode-panel-border); }
   button.secondary:hover { background: var(--vscode-button-secondaryHoverBackground, var(--vscode-list-hoverBackground)); }
   .kbd { font-size: 10px; opacity: .8; margin-left: 6px; }
-  .editor { padding: 10px 12px; }
-  textarea {
-    width: 100%; box-sizing: border-box; min-height: 120px; resize: vertical;
-    font-family: var(--vscode-editor-font-family, monospace);
-    font-size: var(--vscode-editor-font-size, 13px);
-    color: var(--vscode-input-foreground); background: var(--vscode-input-background);
-    border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
-    border-radius: 6px; padding: 10px; line-height: 1.5; tab-size: 2;
-  }
-  textarea:focus { outline: 1px solid var(--vscode-focusBorder); border-color: var(--vscode-focusBorder); }
+  .editor { padding: 10px 12px; height: 200px; box-sizing: border-box; }
+  .cm-editor { height: 100%; }
+  .cm-scroller { overflow: auto; }
   .status { padding: 2px 14px 8px; font-size: 11px; color: var(--vscode-descriptionForeground); min-height: 14px; }
   .results { flex: 1; overflow: auto; padding: 0; }
   table { border-collapse: separate; border-spacing: 0; font-size: 12px; width: max-content; min-width: 100%; }
@@ -305,25 +320,26 @@ export class QueryConsole {
     <button id="save" class="secondary">Save</button>
     <button id="run">Run<span class="kbd">&#8984;&#9166;</span></button>
   </div>
-  <div class="editor"><textarea id="sql" spellcheck="false" placeholder="Write SQL, then press Cmd+Enter"></textarea></div>
+  <div class="editor" id="editor"></div>
   <div class="status" id="status"></div>
   <div class="results" id="results"><div class="hint">Run a query to see results.</div></div>
 
+<script nonce="${nonce}" src="${editorUri}"></script>
 <script nonce="${nonce}">
   const vscode = acquireVsCodeApi();
   const $ = (id) => document.getElementById(id);
-  const sql = $('sql'), runBtn = $('run'), saveBtn = $('save'), results = $('results'), status = $('status'), target = $('target');
+  const runBtn = $('run'), saveBtn = $('save'), results = $('results'), status = $('status'), target = $('target');
+
+  // CodeMirror editor (schema-aware SQL). Falls back gracefully if it fails to load.
+  const ed = window.FlorinEditor.create($('editor'), { doc: '', onRun: run });
 
   function run() {
-    const text = (window.getSelection && String(window.getSelection()).trim()) ? String(window.getSelection()).trim() : sql.value;
-    if (!text.trim()) return;
+    const text = (ed.getSelection().trim() || ed.getValue()).trim();
+    if (!text) return;
     vscode.postMessage({ type: 'run', sql: text });
   }
   runBtn.addEventListener('click', run);
-  saveBtn.addEventListener('click', () => vscode.postMessage({ type: 'save', sql: sql.value }));
-  sql.addEventListener('keydown', (e) => {
-    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); run(); }
-  });
+  saveBtn.addEventListener('click', () => vscode.postMessage({ type: 'save', sql: ed.getValue() }));
 
   function esc(s) { return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
   function attr(s) { return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
@@ -338,9 +354,11 @@ export class QueryConsole {
     const m = ev.data;
     if (m.type === 'setTarget') {
       target.textContent = m.label;
-      if (m.seedSql) sql.value = m.seedSql;
+      if (m.seedSql) ed.setValue(m.seedSql);
       if (m.autoRun) run();
-      sql.focus();
+      ed.focus();
+    } else if (m.type === 'schema') {
+      ed.setSchema(m.schema);
     } else if (m.type === 'running') {
       runBtn.disabled = true; status.textContent = 'Running,';
     } else if (m.type === 'error') {
