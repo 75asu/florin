@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --paper:#efe6d2; --ink:#19211d; --ink2:#5f6a62; --ink3:#a99f89;
+      --gold:#8f6410; --gold-br:#bf8f2c; --rule:#d6c7a3;
+    }
+    body {
+      width: 1200px; height: 627px; overflow: hidden; position: relative;
+      background: var(--paper);
+      background-image:
+        repeating-linear-gradient(90deg, rgba(143,100,16,0.04) 0 1px, transparent 1px 30px),
+        repeating-linear-gradient(0deg,  rgba(143,100,16,0.028) 0 1px, transparent 1px 30px);
+      font-family: 'IBM Plex Mono', monospace;
+      -webkit-font-smoothing: antialiased;
+    }
+    /* double-rule certificate frame */
+    .frame { position: absolute; inset: 26px; border: 2px solid var(--gold-br); }
+    .frame::after { content: ''; position: absolute; inset: 6px; border: 1px solid var(--gold-br); }
+
+    .corner {
+      position: absolute; font-family: 'Fraunces', serif; font-weight: 600;
+      color: var(--gold-br); font-size: 40px; line-height: 1;
+    }
+    .corner.tl { top: 44px; left: 50px; }
+    .corner.br { bottom: 44px; right: 50px; transform: rotate(180deg); }
+
+    .wrap {
+      position: absolute; inset: 26px; padding: 64px 90px;
+      display: flex; flex-direction: column; justify-content: space-between;
+    }
+    .eyebrow {
+      font-size: 16px; letter-spacing: 0.34em; text-transform: uppercase;
+      color: var(--ink2); text-align: center;
+    }
+    .mid { display: flex; align-items: center; gap: 44px; justify-content: center; }
+    .coin { width: 168px; height: 168px; flex-shrink: 0; }
+    .lockup { display: flex; flex-direction: column; }
+    .wordmark {
+      font-family: 'Fraunces', serif; font-weight: 600; font-size: 176px;
+      line-height: 0.86; letter-spacing: -0.02em; color: var(--ink);
+    }
+    .tagline {
+      font-family: 'Fraunces', serif; font-style: italic; font-weight: 400;
+      font-size: 40px; color: var(--ink2); margin-top: 10px;
+    }
+    .foot {
+      display: flex; justify-content: space-between; align-items: baseline;
+      font-size: 20px; color: var(--ink2);
+    }
+    .foot .g { color: var(--gold); font-weight: 500; }
+  </style>
+</head>
+<body>
+  <div class="frame"></div>
+  <span class="corner tl">&fnof;</span>
+  <span class="corner br">&fnof;</span>
+
+  <div class="wrap">
+    <div class="eyebrow">portable database workbench &middot; vs code</div>
+
+    <div class="mid">
+      <svg class="coin" viewBox="0 0 100 100">
+        <circle cx="50" cy="50" r="46" fill="none" stroke="#bf8f2c" stroke-width="2"/>
+        <circle cx="50" cy="50" r="39" fill="none" stroke="#bf8f2c" stroke-width="4"/>
+        <circle cx="50" cy="50" r="31" fill="none" stroke="#d6c7a3" stroke-width="1"/>
+        <text x="50" y="67" text-anchor="middle" font-family="Fraunces, serif" font-weight="600" font-size="48" fill="#bf8f2c">&#402;</text>
+      </svg>
+      <div class="lockup">
+        <div class="wordmark">florin</div>
+        <div class="tagline">one connection string, every machine</div>
+      </div>
+    </div>
+
+    <div class="foot">
+      <span>a git-backed vault &middot; passwords in the keychain</span>
+      <span class="g">github.com/75asu/florin</span>
+    </div>
+  </div>
+</body>
+</html>

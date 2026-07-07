@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>florin — a portable database workbench</title>
+  <meta name="description" content="Your database connections and query library follow you across machines, envs, and jobs — in a git-backed vault you own. Passwords stay in the OS keychain, never synced. A VS Code extension." />
+  <link rel="canonical" href="https://75asu.github.io/florin" />
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />
+  <meta property="og:site_name" content="florin" />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="florin — a portable database workbench" />
+  <meta property="og:description" content="Your database connections and query library follow you across machines, envs, and jobs — in a git-backed vault you own. Passwords stay in the OS keychain, never synced." />
+  <meta property="og:url" content="https://75asu.github.io/florin" />
+  <meta property="og:image" content="https://75asu.github.io/florin/og.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="627" />
+  <meta property="og:locale" content="en_US" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="florin — a portable database workbench" />
+  <meta name="twitter:description" content="Your database connections and query library follow you across machines, envs, and jobs — in a git-backed vault you own. Passwords stay in the OS keychain, never synced." />
+  <meta name="twitter:image" content="https://75asu.github.io/florin/og.png" />
+
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='none' stroke='%23bf8f2c' stroke-width='6'/><circle cx='50' cy='50' r='27' fill='none' stroke='%23bf8f2c' stroke-width='3'/><path d='M56 34h-6c-4 0-6 2-6 6v26 M40 50h16' stroke='%23bf8f2c' stroke-width='5' fill='none' stroke-linecap='round'/></svg>" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --paper:  #efe6d2;
+      --panel:  #faf5ea;
+      --ink:    #19211d;
+      --ink2:   #5f6a62;
+      --ink3:   #a99f89;
+      --gold:   #8f6410;
+      --gold-br:#bf8f2c;
+      --rule:   #d6c7a3;
+      --rule-2: #e6dcc4;
+    }
+
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      background: var(--paper);
+      color: var(--ink);
+      font-family: 'IBM Plex Mono', ui-monospace, monospace;
+      font-size: 15px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      /* faint guilloché-ish engraving texture */
+      background-image:
+        repeating-linear-gradient(90deg, rgba(143,100,16,0.030) 0 1px, transparent 1px 26px),
+        repeating-linear-gradient(0deg,  rgba(143,100,16,0.020) 0 1px, transparent 1px 26px);
+    }
+
+    a { color: var(--gold); text-decoration: none; }
+    a:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+    .note {
+      max-width: 900px;
+      margin: 5vh auto;
+      background: var(--panel);
+      border: 1px solid var(--gold-br);
+      outline: 1px solid var(--gold-br);
+      outline-offset: 5px;
+      box-shadow: 0 24px 60px -32px rgba(25,33,29,0.5);
+      padding: clamp(28px, 5vw, 64px);
+      position: relative;
+      animation: rise 0.7s cubic-bezier(.2,.7,.2,1) both;
+    }
+    @keyframes rise { from { opacity: 0; transform: translateY(14px); } }
+    @media (prefers-reduced-motion: reduce) { .note { animation: none; } }
+
+    /* corner denominations, like a note */
+    .corner {
+      position: absolute;
+      font-family: 'Fraunces', serif;
+      font-weight: 600;
+      color: var(--gold-br);
+      font-size: 20px;
+      line-height: 1;
+    }
+    .corner.tl { top: 14px; left: 16px; }
+    .corner.br { bottom: 14px; right: 16px; transform: rotate(180deg); }
+
+    /* ── header row ── */
+    .eyebrow {
+      font-size: 11px;
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      color: var(--ink2);
+      display: flex; align-items: center; gap: 10px;
+      justify-content: center;
+      text-align: center;
+    }
+    .eyebrow::before, .eyebrow::after {
+      content: ''; height: 1px; width: 40px; background: var(--rule);
+    }
+
+    .wordmark {
+      font-family: 'Fraunces', serif;
+      font-weight: 600;
+      font-size: clamp(76px, 15vw, 168px);
+      line-height: 0.9;
+      letter-spacing: -0.015em;
+      text-align: center;
+      margin: 20px 0 6px;
+      color: var(--ink);
+    }
+    .subtitle {
+      font-family: 'Fraunces', serif;
+      font-weight: 400;
+      font-style: italic;
+      font-size: clamp(18px, 3vw, 26px);
+      text-align: center;
+      color: var(--ink2);
+      margin-bottom: 34px;
+    }
+
+    /* ── the coin + serial signature ── */
+    .stamp {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 22px;
+      align-items: center;
+      border-top: 1px solid var(--rule);
+      border-bottom: 1px solid var(--rule);
+      padding: 22px 4px;
+      margin-bottom: 34px;
+    }
+    .coin { width: 84px; height: 84px; flex-shrink: 0; }
+    .serial-k {
+      font-size: 10px; letter-spacing: 0.28em; text-transform: uppercase;
+      color: var(--ink3); margin-bottom: 6px;
+    }
+    .serial-v {
+      font-size: clamp(13px, 2.3vw, 19px);
+      font-weight: 500;
+      color: var(--ink);
+      word-break: break-all;
+    }
+    .serial-v .dim { color: var(--ink3); }
+    .serial-v .g { color: var(--gold); }
+    .serial-note {
+      font-size: 12.5px; color: var(--ink2); margin-top: 9px; line-height: 1.65;
+    }
+
+    /* ── section heading ── */
+    .h {
+      font-family: 'Fraunces', serif;
+      font-weight: 600;
+      font-size: 22px;
+      color: var(--ink);
+      margin: 40px 0 4px;
+    }
+    .h-sub { font-size: 12.5px; color: var(--ink2); margin-bottom: 20px; }
+
+    /* ── guarantees / features ── */
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1px;
+      background: var(--rule-2);
+      border: 1px solid var(--rule-2);
+    }
+    .cell { background: var(--panel); padding: 18px 18px 20px; }
+    .cell-t {
+      font-weight: 600; color: var(--ink); font-size: 14.5px;
+      display: flex; align-items: baseline; gap: 8px; margin-bottom: 7px;
+    }
+    .cell-t .mark { color: var(--gold-br); font-size: 12px; }
+    .cell-d { font-size: 12.5px; color: var(--ink2); line-height: 1.62; }
+    .cell-d code { color: var(--gold); background: rgba(143,100,16,0.08); padding: 0 4px; font-size: 11.5px; }
+
+    /* ── how it works ── */
+    .flow { display: flex; flex-direction: column; gap: 0; margin-top: 6px; }
+    .frow {
+      display: grid; grid-template-columns: 130px 1fr; gap: 20px;
+      padding: 16px 0; border-bottom: 1px solid var(--rule-2);
+    }
+    .frow:last-child { border-bottom: none; }
+    .frow-k {
+      font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+      color: var(--gold); padding-top: 2px;
+    }
+    .frow-v { font-size: 13px; color: var(--ink2); line-height: 1.7; }
+    .frow-v .hi { color: var(--ink); font-weight: 500; }
+    .frow-v code { color: var(--gold); background: rgba(143,100,16,0.08); padding: 0 4px; font-size: 12px; }
+
+    /* ── install ── */
+    .install {
+      margin-top: 30px;
+      border: 1px dashed var(--gold-br);
+      padding: 16px 18px;
+      font-size: 12.5px;
+      line-height: 1.9;
+      color: var(--ink);
+      background: rgba(191,143,44,0.05);
+      overflow-x: auto;
+    }
+    .install .c { color: var(--ink3); }
+    .install .cmd { color: var(--gold); }
+
+    /* ── footer ── */
+    .foot {
+      margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--rule);
+      display: flex; flex-wrap: wrap; gap: 6px 22px; justify-content: space-between;
+      font-size: 12px; color: var(--ink2);
+    }
+
+    @media (max-width: 640px) {
+      .grid { grid-template-columns: 1fr; }
+      .stamp { grid-template-columns: 1fr; gap: 14px; text-align: left; }
+      .frow { grid-template-columns: 1fr; gap: 4px; }
+      .note { outline-offset: 3px; }
+    }
+  </style>
+</head>
+<body>
+
+  <main class="note">
+    <span class="corner tl">&fnof;</span>
+    <span class="corner br">&fnof;</span>
+
+    <div class="eyebrow">portable database workbench &middot; vs code</div>
+    <h1 class="wordmark">florin</h1>
+    <p class="subtitle">one connection string, every machine</p>
+
+    <!-- signature: coin + serial -->
+    <div class="stamp">
+      <svg class="coin" viewBox="0 0 100 100" aria-label="florin coin">
+        <circle cx="50" cy="50" r="46" fill="none" stroke="var(--gold-br)" stroke-width="2"/>
+        <circle cx="50" cy="50" r="39" fill="none" stroke="var(--gold-br)" stroke-width="4"/>
+        <circle cx="50" cy="50" r="31" fill="none" stroke="var(--rule)" stroke-width="1"/>
+        <text x="50" y="66" text-anchor="middle" font-family="Fraunces, serif" font-weight="600" font-size="46" fill="var(--gold-br)">&#402;</text>
+      </svg>
+      <div>
+        <div class="serial-k">serial &mdash; issued once, spends anywhere</div>
+        <div class="serial-v"><span class="g">postgresql://</span>you@<span class="dim">any-machine</span>:5432/db</div>
+        <div class="serial-note">Add a connection by pasting the URL. Everything but the password rides a Git vault you own; clone it on a new machine, re-enter one password, and your whole workbench is back.</div>
+      </div>
+    </div>
+
+    <!-- guarantees / features -->
+    <h2 class="h">What it carries</h2>
+    <p class="h-sub">the workbench, minus the lock-in</p>
+    <div class="grid">
+      <div class="cell">
+        <div class="cell-t"><span class="mark">&#9679;</span> Git-backed vault</div>
+        <div class="cell-d">Connections + a saved-query library as plain files in a repo you choose. Debounced auto commit + push, pull on focus. Versioned, portable, yours.</div>
+      </div>
+      <div class="cell">
+        <div class="cell-t"><span class="mark">&#9679;</span> Add connection from URL</div>
+        <div class="cell-d">Paste <code>postgresql://…</code> and go , the step other clients bury behind a form.</div>
+      </div>
+      <div class="cell">
+        <div class="cell-t"><span class="mark">&#9679;</span> Query console</div>
+        <div class="cell-d">CodeMirror editor with schema-aware autocomplete, keyword formatting, a resizable results grid, and multi-statement transactional runs.</div>
+      </div>
+      <div class="cell">
+        <div class="cell-t"><span class="mark">&#9679;</span> Saved-query library</div>
+        <div class="cell-d">A Postman-style tree of folders and queries. Click to load, rename, delete, save-or-overwrite , a collection you keep.</div>
+      </div>
+      <div class="cell">
+        <div class="cell-t"><span class="mark">&#9679;</span> Browse the schema</div>
+        <div class="cell-d">Connection &rarr; database &rarr; schema &rarr; table &rarr; columns, with live status icons and real error messages, never a blank bar.</div>
+      </div>
+      <div class="cell">
+        <div class="cell-t"><span class="mark">&#9679;</span> Passwords in the keychain</div>
+        <div class="cell-d">Secrets live in the OS keychain, entered once per machine. The vault never holds a password; nothing sensitive is ever committed.</div>
+      </div>
+    </div>
+
+    <!-- how it works -->
+    <h2 class="h">How it works</h2>
+    <p class="h-sub">one idea, two storage calls</p>
+    <div class="flow">
+      <div class="frow">
+        <div class="frow-k">The vault</div>
+        <div class="frow-v"><span class="hi">connections + queries</span> &rarr; plain files (<code>connections/*.json</code> without passwords, <code>queries/&lt;group&gt;/*.sql</code>) in a <code>florin/</code> subdir of any Git repo. It shells out to system <code>git</code>, inheriting your repo auth and per-folder identity , no tokens to manage.</div>
+      </div>
+      <div class="frow">
+        <div class="frow-k">The keychain</div>
+        <div class="frow-v"><span class="hi">passwords</span> &rarr; the OS keychain, re-entered once per machine. Never synced, never in git.</div>
+      </div>
+      <div class="frow">
+        <div class="frow-k">The engine</div>
+        <div class="frow-v">an engine-agnostic <span class="hi">Driver</span> interface (Postgres today), in-process , no language server. esbuild bundles it into a self-contained <code>.vsix</code>.</div>
+      </div>
+    </div>
+
+    <div class="install">
+      <span class="c"># install the latest release into VS Code</span><br>
+      <span class="cmd">curl -fsSL https://github.com/75asu/florin/releases/latest/download/florin.vsix -o /tmp/florin.vsix</span><br>
+      <span class="cmd">code --install-extension /tmp/florin.vsix</span>
+    </div>
+
+    <div class="foot">
+      <span>open source &middot; MIT<span id="ver"></span></span>
+      <span>
+        <a href="https://github.com/75asu/florin">github.com/75asu/florin</a>
+        &nbsp;·&nbsp;
+        <a href="https://75asu.pages.dev">@75asu</a>
+      </span>
+    </div>
+  </main>
+
+  <script>
+    // Version stays current on its own: pull the latest release tag from GitHub,
+    // so the page never needs a manual bump. Fails silent (just shows "MIT") if the
+    // API is unreachable or rate-limited.
+    fetch('https://api.github.com/repos/75asu/florin/releases/latest')
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) { if (d && d.tag_name) document.getElementById('ver').textContent = ' · ' + d.tag_name; })
+      .catch(function () {});
+  </script>
+
+  <!-- 100% privacy-first analytics -->
+  <script async src="https://scripts.simpleanalyticscdn.com/latest.js"></script>
+
+</body>
+</html>
