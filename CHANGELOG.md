@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/75asu/florin/compare/v0.3.0...v0.4.0) (2026-07-07)
+
+
+### Features
+
+* connection status, saved-query CRUD, format, and multi-statement transactional run ([94348d2](https://github.com/75asu/florin/commit/94348d2618d2e64bb21c2393f85ad8449a03bd2c))
+
 ## [0.3.0](https://github.com/75asu/florin/compare/v0.2.0...v0.3.0) (2026-07-07)
 
 
