@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/75asu/florin/compare/v0.2.0...v0.3.0) (2026-07-07)
+
+
+### Features
+
+* saved queries tree view to open and run saved queries ([77777fd](https://github.com/75asu/florin/commit/77777fdb31ae243fa6485387e776a07381995b5a))
+
 ## [0.2.0](https://github.com/75asu/florin/compare/v0.1.0...v0.2.0) (2026-07-07)
 
 
