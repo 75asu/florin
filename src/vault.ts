@@ -216,6 +216,32 @@ export class Vault {
     await fs.writeFile(path.join(groupDir, file), sql.endsWith('\n') ? sql : sql + '\n');
   }
 
+  async renameQuery(group: string, oldName: string, newName: string): Promise<void> {
+    if (!this.dir) {
+      return;
+    }
+    const dir = path.join(this.queriesDir(), slugify(group) || 'scratch');
+    const from = path.join(dir, `${slugify(oldName) || 'query'}.sql`);
+    const to = path.join(dir, `${slugify(newName) || 'query'}.sql`);
+    await fs.rename(from, to);
+  }
+
+  async deleteQuery(group: string, name: string): Promise<void> {
+    if (!this.dir) {
+      return;
+    }
+    const dir = path.join(this.queriesDir(), slugify(group) || 'scratch');
+    await fs.rm(path.join(dir, `${slugify(name) || 'query'}.sql`), { force: true });
+    // Drop the group folder if it's now empty.
+    try {
+      if ((await fs.readdir(dir)).length === 0) {
+        await fs.rmdir(dir);
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
   async listQueries(): Promise<SavedQuery[]> {
     if (!this.dir) {
       return [];

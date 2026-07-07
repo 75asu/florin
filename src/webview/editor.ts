@@ -7,12 +7,15 @@ import { keymap } from '@codemirror/view';
 import { sql, PostgreSQL } from '@codemirror/lang-sql';
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { tags as t } from '@lezer/highlight';
+import { format as formatSql } from 'sql-formatter';
+import { splitStatements } from '../sql/split';
 
 export interface FlorinEditorApi {
   getValue(): string;
   getSelection(): string;
   setValue(v: string): void;
   setSchema(schema: Record<string, string[]>): void;
+  format(): void;
   focus(): void;
 }
 
@@ -64,30 +67,43 @@ const theme = EditorView.theme({
   '.cm-completionIcon': { opacity: '0.7' },
 });
 
-function create(parent: HTMLElement, opts: { doc?: string; onRun: () => void }): FlorinEditorApi {
+function create(
+  parent: HTMLElement,
+  opts: { doc?: string; onRun: () => void; onStats?: (statements: number) => void },
+): FlorinEditorApi {
   const schemaCompartment = new Compartment();
+  let view: EditorView;
+
+  const statsListener = EditorView.updateListener.of((u) => {
+    if (u.docChanged && opts.onStats) {
+      opts.onStats(splitStatements(u.state.doc.toString()).length);
+    }
+  });
+
+  // Uppercase keywords + tidy indentation. Throws on a formatter error so the
+  // caller can surface it (instead of silently doing nothing).
+  const doFormat = () => {
+    const out = formatSql(view.state.doc.toString(), { language: 'postgresql', keywordCase: 'upper' });
+    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: out } });
+  };
 
   const runKeymap = Prec.highest(
     keymap.of([
-      {
-        key: 'Mod-Enter',
-        run: () => {
-          opts.onRun();
-          return true;
-        },
-      },
+      { key: 'Mod-Enter', run: () => (opts.onRun(), true) },
+      { key: 'Shift-Mod-f', run: () => (doFormat(), true) },
     ]),
   );
 
-  const view = new EditorView({
+  view = new EditorView({
     parent,
     state: EditorState.create({
       doc: opts.doc ?? '',
       extensions: [
         runKeymap,
         basicSetup,
-        schemaCompartment.of(sql({ dialect: PostgreSQL, upperCaseKeywords: false })),
+        schemaCompartment.of(sql({ dialect: PostgreSQL, upperCaseKeywords: true })),
         syntaxHighlighting(highlight),
+        statsListener,
         theme,
         EditorView.lineWrapping,
       ],
@@ -105,9 +121,10 @@ function create(parent: HTMLElement, opts: { doc?: string; onRun: () => void }):
     setSchema: (schema: Record<string, string[]>) =>
       view.dispatch({
         effects: schemaCompartment.reconfigure(
-          sql({ dialect: PostgreSQL, upperCaseKeywords: false, schema }),
+          sql({ dialect: PostgreSQL, upperCaseKeywords: true, schema }),
         ),
       }),
+    format: doFormat,
     focus: () => view.focus(),
   };
 }

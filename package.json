@@ -109,6 +109,18 @@
         "command": "florin.openQueryItem",
         "title": "Open Query",
         "category": "Florin"
+      },
+      {
+        "command": "florin.renameQueryItem",
+        "title": "Rename Query",
+        "category": "Florin",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "florin.deleteQueryItem",
+        "title": "Delete Query",
+        "category": "Florin",
+        "icon": "$(trash)"
       }
     ],
     "configuration": {
@@ -204,6 +216,26 @@
           "command": "florin.deleteConnection",
           "when": "view == florin.connections && viewItem == florin.connection",
           "group": "1_manage@2"
+        },
+        {
+          "command": "florin.renameQueryItem",
+          "when": "view == florin.queries && viewItem == florin.queryItem",
+          "group": "inline@1"
+        },
+        {
+          "command": "florin.deleteQueryItem",
+          "when": "view == florin.queries && viewItem == florin.queryItem",
+          "group": "inline@2"
+        },
+        {
+          "command": "florin.renameQueryItem",
+          "when": "view == florin.queries && viewItem == florin.queryItem",
+          "group": "1_edit@1"
+        },
+        {
+          "command": "florin.deleteQueryItem",
+          "when": "view == florin.queries && viewItem == florin.queryItem",
+          "group": "1_edit@2"
         }
       ]
     }
@@ -237,6 +269,7 @@
     "codemirror": "^6.0.2",
     "esbuild": "^0.23.0",
     "husky": "^9.1.0",
+    "sql-formatter": "^15.8.2",
     "typescript": "^5.5.0"
   },
   "allowScripts": {

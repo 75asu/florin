@@ -33,8 +33,9 @@ export interface Driver {
   children(node: FlorinNode): Promise<FlorinNode[]>;
   // Preview the first `limit` rows of a table/view node.
   preview(node: FlorinNode, limit: number): Promise<QueryResult>;
-  // Run arbitrary SQL against a specific database (the query editor).
-  query(database: string, sql: string): Promise<QueryResult>;
+  // Run one or more statements against a database, in a single transaction.
+  // Returns the last statement's result set (or an affected-rows summary).
+  runScript(database: string, statements: string[]): Promise<QueryResult>;
   // Full table+column map of a database, for autocomplete.
   schema(database: string): Promise<SchemaMap>;
 }

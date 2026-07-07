@@ -3,6 +3,8 @@ import { randomUUID } from 'crypto';
 import { ConnectionStore } from './store';
 import { Vault } from './vault';
 import { getDriver } from './drivers';
+import { describeError } from './errors';
+import { splitStatements } from './sql/split';
 import type { FlorinNode, SchemaMap } from './drivers/types';
 
 // Max rows rendered in the grid. The query still runs fully server-side (guarded
@@ -138,7 +140,9 @@ export class QueryConsole {
     return panel;
   }
 
-  // Save the current editor SQL into the vault's query library.
+  // Save the current editor SQL into the vault: overwrite an existing query, or
+  // create a new one. saveQuery writes to the same path for the same group/name,
+  // so picking an existing entry updates it in place.
   private async saveCurrent(sql: string): Promise<void> {
     if (!sql.trim()) {
       return;
@@ -147,22 +151,65 @@ export class QueryConsole {
       vscode.window.showInformationMessage('Florin: configure a vault to save queries (Florin: Configure Vault).');
       return;
     }
-    const group = await vscode.window.showInputBox({
-      title: 'Save Query , group',
-      value: this.target?.connName ?? 'scratch',
-      prompt: 'Folder to file this query under',
-    });
-    if (group === undefined) {
+
+    interface SaveItem extends vscode.QuickPickItem {
+      mode: 'new' | 'existing';
+      group?: string;
+      name?: string;
+    }
+
+    const newItem: SaveItem = { label: '$(add) New query,', mode: 'new' };
+    const existing = await this.vault.listQueries();
+
+    let choice: SaveItem | undefined = newItem;
+    if (existing.length) {
+      const items: SaveItem[] = [
+        newItem,
+        ...existing.map(
+          (q): SaveItem => ({ label: `$(save) ${q.name}`, description: q.group, mode: 'existing', group: q.group, name: q.name }),
+        ),
+      ];
+      choice = await vscode.window.showQuickPick(items, {
+        title: 'Florin: Save Query',
+        placeHolder: 'Overwrite an existing query, or create a new one',
+      });
+    }
+    if (!choice) {
       return;
     }
-    const name = await vscode.window.showInputBox({ title: 'Save Query , name', placeHolder: 'users-by-tenant' });
-    if (!name) {
-      return;
+
+    let group: string;
+    let name: string;
+    if (choice.mode === 'new' || !choice.group || !choice.name) {
+      const g = await vscode.window.showInputBox({
+        title: 'Save Query , group',
+        value: this.target?.connName ?? 'scratch',
+        prompt: 'Folder to file this query under',
+        ignoreFocusOut: true,
+      });
+      if (g === undefined) {
+        return;
+      }
+      const n = await vscode.window.showInputBox({
+        title: 'Save Query , name',
+        placeHolder: 'users-by-tenant',
+        ignoreFocusOut: true,
+      });
+      if (!n) {
+        return;
+      }
+      group = g;
+      name = n;
+    } else {
+      group = choice.group;
+      name = choice.name;
     }
+
+    const updating = choice.mode === 'existing';
     await this.vault.saveQuery(group, name, sql);
-    this.vault.scheduleSync(`florin: save query ${group}/${name}`);
+    this.vault.scheduleSync(`florin: ${updating ? 'update' : 'save'} query ${group}/${name}`);
     void vscode.commands.executeCommand('florin.refreshQueries');
-    vscode.window.showInformationMessage(`Florin: saved query "${name}".`);
+    vscode.window.showInformationMessage(`Florin: ${updating ? 'updated' : 'saved'} query "${name}".`);
   }
 
   // Load a saved query's SQL into the console (from the Saved Queries tree).
@@ -215,6 +262,10 @@ export class QueryConsole {
     if (!sql || !target) {
       return;
     }
+    const statements = splitStatements(sql);
+    if (statements.length === 0) {
+      return;
+    }
     const conn = this.store.get(target.connectionId);
     if (!conn) {
       this.post({ type: 'error', message: 'Connection no longer exists.' });
@@ -224,9 +275,10 @@ export class QueryConsole {
     this.post({ type: 'running' });
     try {
       const driver = getDriver(conn, await this.store.password(conn.id));
-      const result = await driver.query(target.database, sql);
+      const result = await driver.runScript(target.database, statements);
       const capped = result.rows.length > DISPLAY_CAP;
-      const note =
+      const prefix = statements.length > 1 ? `ran ${statements.length} statements , ` : '';
+      const tail =
         result.columns.length === 0
           ? `${result.rowCount} row(s) affected`
           : capped
@@ -236,10 +288,10 @@ export class QueryConsole {
         type: 'result',
         columns: result.columns,
         rows: capped ? result.rows.slice(0, DISPLAY_CAP) : result.rows,
-        note,
+        note: prefix + tail,
       });
     } catch (err) {
-      this.post({ type: 'error', message: err instanceof Error ? err.message : String(err) });
+      this.post({ type: 'error', ...describeError(err) });
     }
   }
 
@@ -289,9 +341,14 @@ export class QueryConsole {
     border: 1px solid var(--vscode-panel-border); }
   button.secondary:hover { background: var(--vscode-button-secondaryHoverBackground, var(--vscode-list-hoverBackground)); }
   .kbd { font-size: 10px; opacity: .8; margin-left: 6px; }
-  .editor { padding: 10px 12px; height: 200px; box-sizing: border-box; }
+  .stmts { font-size: 11px; color: var(--vscode-descriptionForeground); margin-right: 2px; white-space: nowrap; }
+  .editor { padding: 10px 12px 0; height: 200px; box-sizing: border-box; flex: 0 0 auto; }
   .cm-editor { height: 100%; }
   .cm-scroller { overflow: auto; }
+  .splitter { flex: 0 0 auto; height: 8px; cursor: row-resize; position: relative; }
+  .splitter::before { content: ''; position: absolute; left: 12px; right: 12px; top: 3px; height: 2px;
+    border-radius: 2px; background: var(--vscode-panel-border); transition: background .1s; }
+  .splitter:hover::before, .splitter.dragging::before { background: var(--vscode-focusBorder); }
   .status { padding: 2px 14px 8px; font-size: 11px; color: var(--vscode-descriptionForeground); min-height: 14px; }
   .results { flex: 1; overflow: auto; padding: 0; }
   table { border-collapse: separate; border-spacing: 0; font-size: 12px; width: max-content; min-width: 100%; }
@@ -317,20 +374,28 @@ export class QueryConsole {
   tbody tr:hover td.n { background: var(--vscode-list-hoverBackground); }
   thead th.n { z-index: 3; }
   .null { color: var(--vscode-descriptionForeground); font-style: italic; }
-  .error { margin-top: 4px; padding: 12px; border-radius: 6px; white-space: pre-wrap; font-size: 12px;
+  .error { margin: 4px 14px 0; padding: 12px; border-radius: 6px; white-space: pre-wrap; font-size: 12px;
     color: var(--vscode-inputValidation-errorForeground, var(--vscode-foreground));
     background: var(--vscode-inputValidation-errorBackground, rgba(255,0,0,.08));
     border: 1px solid var(--vscode-inputValidation-errorBorder, #b00); }
+  .error.conn { color: var(--vscode-inputValidation-warningForeground, var(--vscode-foreground));
+    background: var(--vscode-inputValidation-warningBackground, rgba(255,170,0,.10));
+    border-color: var(--vscode-inputValidation-warningBorder, #b98900); }
+  .etitle { font-weight: 600; margin-bottom: 5px; display: flex; align-items: center; gap: 6px; }
+  .ehint { margin-top: 8px; opacity: .85; font-size: 11px; }
   .hint { color: var(--vscode-descriptionForeground); padding: 20px 4px; }
 </style>
 </head>
 <body>
   <div class="bar">
     <div class="target">Running on <b id="target">, no connection</b></div>
+    <span id="stmts" class="stmts"></span>
+    <button id="format" class="secondary">Format</button>
     <button id="save" class="secondary">Save</button>
     <button id="run">Run<span class="kbd">&#8984;&#9166;</span></button>
   </div>
   <div class="editor" id="editor"></div>
+  <div class="splitter" id="splitter" title="Drag to resize"></div>
   <div class="status" id="status"></div>
   <div class="results" id="results"><div class="hint">Run a query to see results.</div></div>
 
@@ -338,10 +403,16 @@ export class QueryConsole {
 <script nonce="${nonce}">
   const vscode = acquireVsCodeApi();
   const $ = (id) => document.getElementById(id);
-  const runBtn = $('run'), saveBtn = $('save'), results = $('results'), status = $('status'), target = $('target');
+  const runBtn = $('run'), saveBtn = $('save'), formatBtn = $('format'), results = $('results'), status = $('status'), target = $('target');
+  const editorEl = $('editor'), splitter = $('splitter');
 
   // CodeMirror editor (schema-aware SQL). Falls back gracefully if it fails to load.
-  const ed = window.FlorinEditor.create($('editor'), { doc: '', onRun: run });
+  const stmtsEl = $('stmts');
+  const ed = window.FlorinEditor.create(editorEl, {
+    doc: '',
+    onRun: run,
+    onStats: (n) => { stmtsEl.textContent = n >= 1 ? (n + (n === 1 ? ' statement' : ' statements')) : ''; },
+  });
 
   function run() {
     const text = (ed.getSelection().trim() || ed.getValue()).trim();
@@ -350,6 +421,37 @@ export class QueryConsole {
   }
   runBtn.addEventListener('click', run);
   saveBtn.addEventListener('click', () => vscode.postMessage({ type: 'save', sql: ed.getValue() }));
+  formatBtn.addEventListener('click', () => {
+    try {
+      ed.format();
+      status.textContent = 'Formatted';
+    } catch (e) {
+      // sql-formatter's parser can't handle every Postgres construct; degrade
+      // gracefully instead of dumping its grammar.
+      const m = String((e && e.message) ? e.message : e).match(/line (\d+) column (\d+)/);
+      status.textContent = m
+        ? 'Could not format , unsupported syntax near line ' + m[1] + '. Query left unchanged.'
+        : 'Could not format , unsupported syntax. Query left unchanged.';
+    }
+  });
+
+  // Restore persisted editor height, then wire the drag-to-resize splitter.
+  try { const s = vscode.getState(); if (s && s.editorHeight) editorEl.style.height = s.editorHeight; } catch (e) {}
+  let dragging = false, startY = 0, startH = 0;
+  splitter.addEventListener('mousedown', (e) => {
+    dragging = true; startY = e.clientY; startH = editorEl.getBoundingClientRect().height;
+    splitter.classList.add('dragging'); document.body.style.cursor = 'row-resize'; e.preventDefault();
+  });
+  window.addEventListener('mousemove', (e) => {
+    if (!dragging) return;
+    const h = Math.max(80, Math.min(window.innerHeight - 160, startH + (e.clientY - startY)));
+    editorEl.style.height = h + 'px';
+  });
+  window.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false; splitter.classList.remove('dragging'); document.body.style.cursor = '';
+    try { vscode.setState({ editorHeight: editorEl.style.height }); } catch (e) {}
+  });
 
   function esc(s) { return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
   function attr(s) { return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
@@ -372,8 +474,12 @@ export class QueryConsole {
     } else if (m.type === 'running') {
       runBtn.disabled = true; status.textContent = 'Running,';
     } else if (m.type === 'error') {
-      runBtn.disabled = false; status.textContent = '';
-      results.innerHTML = '<div class="error">' + esc(m.message) + '</div>';
+      runBtn.disabled = false;
+      const conn = m.kind === 'connection';
+      status.textContent = conn ? 'Not connected' : 'Query failed';
+      const title = conn ? 'Not connected' : 'Query error';
+      const hint = conn ? '<div class="ehint">The database connection is down. Check the connection or tunnel, then Run again.</div>' : '';
+      results.innerHTML = '<div class="error' + (conn ? ' conn' : '') + '"><div class="etitle">' + esc(title) + '</div>' + esc(m.message || 'Unknown error') + hint + '</div>';
     } else if (m.type === 'result') {
       runBtn.disabled = false; status.textContent = m.note;
       if (!m.columns.length) { results.innerHTML = '<div class="hint">' + esc(m.note) + '</div>'; return; }

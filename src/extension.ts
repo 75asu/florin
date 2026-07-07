@@ -11,6 +11,12 @@ import type { FlorinNode } from './drivers/types';
 const PROMPTED_KEY = 'florin.vault.prompted';
 const PULL_THROTTLE_MS = 60_000;
 
+interface QueryItem {
+  kind?: string;
+  group?: string;
+  name?: string;
+}
+
 export function activate(context: vscode.ExtensionContext) {
   const vault = new Vault();
   const store = new ConnectionStore(context, vault);
@@ -31,6 +37,8 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('florin.refresh', () => refreshFromVault()),
     vscode.commands.registerCommand('florin.refreshQueries', () => queries.refresh()),
     vscode.commands.registerCommand('florin.openQueryItem', (node: { sql?: string }) => queryConsole.openWithSql(node?.sql ?? '')),
+    vscode.commands.registerCommand('florin.renameQueryItem', (node: QueryItem) => renameQueryItem(vault, queries, node)),
+    vscode.commands.registerCommand('florin.deleteQueryItem', (node: QueryItem) => deleteQueryItem(vault, queries, node)),
     vscode.commands.registerCommand('florin.previewTable', (node: FlorinNode) => queryConsole.openPreview(node)),
     vscode.commands.registerCommand('florin.renameConnection', (node: FlorinNode) => renameConnection(store, explorer, node)),
     vscode.commands.registerCommand('florin.deleteConnection', (node: FlorinNode) => deleteConnection(store, explorer, node)),
@@ -156,6 +164,42 @@ function normalizeRepo(repo: string): string {
     return repo;
   }
   return `https://github.com/${repo.replace(/\.git$/, '')}.git`;
+}
+
+async function renameQueryItem(vault: Vault, queries: QueriesProvider, node: QueryItem) {
+  if (!node || node.kind !== 'query' || !node.group || !node.name) {
+    return;
+  }
+  const name = await vscode.window.showInputBox({
+    title: 'Florin: Rename Query',
+    prompt: 'New name for this saved query',
+    value: node.name,
+    ignoreFocusOut: true,
+    validateInput: (v) => (v.trim() ? undefined : 'Name cannot be empty'),
+  });
+  if (!name || name.trim() === node.name) {
+    return;
+  }
+  await vault.renameQuery(node.group, node.name, name.trim());
+  vault.scheduleSync(`florin: rename query ${node.group}/${node.name} -> ${name.trim()}`);
+  queries.refresh();
+}
+
+async function deleteQueryItem(vault: Vault, queries: QueriesProvider, node: QueryItem) {
+  if (!node || node.kind !== 'query' || !node.group || !node.name) {
+    return;
+  }
+  const pick = await vscode.window.showWarningMessage(
+    `Delete saved query "${node.name}"?`,
+    { modal: true },
+    'Delete',
+  );
+  if (pick !== 'Delete') {
+    return;
+  }
+  await vault.deleteQuery(node.group, node.name);
+  vault.scheduleSync(`florin: delete query ${node.group}/${node.name}`);
+  queries.refresh();
 }
 
 async function renameConnection(store: ConnectionStore, explorer: ExplorerProvider, node: FlorinNode) {

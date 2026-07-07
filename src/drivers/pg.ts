@@ -39,8 +39,32 @@ export class PgDriver implements Driver {
     );
   }
 
-  query(database: string, sql: string): Promise<QueryResult> {
-    return this.withClient(database, (client) => this.exec(client, sql));
+  // Run all statements on one connection inside a transaction (all-or-nothing).
+  // Returns the last result set that had columns; otherwise an affected-rows
+  // summary. Rolls back and rethrows on any error.
+  runScript(database: string, statements: string[]): Promise<QueryResult> {
+    return this.withClient(database, async (client) => {
+      let last: QueryResult = { columns: [], rows: [], rowCount: 0 };
+      let affected = 0;
+      let sawResultSet = false;
+      await client.query('BEGIN');
+      try {
+        for (const stmt of statements) {
+          const r = await this.exec(client, stmt);
+          if (r.columns.length) {
+            last = r;
+            sawResultSet = true;
+          } else {
+            affected += r.rowCount;
+          }
+        }
+        await client.query('COMMIT');
+      } catch (err) {
+        await client.query('ROLLBACK').catch(() => undefined);
+        throw err;
+      }
+      return sawResultSet ? last : { columns: [], rows: [], rowCount: affected };
+    });
   }
 
   async schema(database: string): Promise<SchemaMap> {
