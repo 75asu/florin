@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/75asu/florin/compare/v0.4.0...v0.5.0) (2026-07-09)
+
+
+### Features
+
+* add Redis driver, connection editor, and engine-aware tree ([383cd04](https://github.com/75asu/florin/commit/383cd04bb0265312c5abd0e70b9f707fb79f61a8))
+
 ## [0.4.0](https://github.com/75asu/florin/compare/v0.3.0...v0.4.0) (2026-07-07)
 
 

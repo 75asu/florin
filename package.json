@@ -2,7 +2,7 @@
   "name": "florin",
   "displayName": "Florin",
   "description": "Portable database workbench for VS Code: browse, query, and sync your connections + saved queries to a Git repo you own. Passwords stay in the OS keychain.",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "publisher": "asutoshpanda",
   "license": "MIT",
   "repository": {
