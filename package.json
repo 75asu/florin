@@ -43,7 +43,7 @@
     "viewsWelcome": [
       {
         "view": "florin.connections",
-        "contents": "No database connections yet.\n[Add Connection from URL](command:florin.addConnectionFromUrl)"
+        "contents": "No database connections yet.\n[Add Connection](command:florin.addConnection)\n[Add from URL](command:florin.addConnectionFromUrl)"
       },
       {
         "view": "florin.queries",
@@ -52,10 +52,22 @@
     ],
     "commands": [
       {
+        "command": "florin.addConnection",
+        "title": "Add Connection",
+        "category": "Florin",
+        "icon": "$(add)"
+      },
+      {
+        "command": "florin.editConnection",
+        "title": "Edit Connection",
+        "category": "Florin",
+        "icon": "$(edit)"
+      },
+      {
         "command": "florin.addConnectionFromUrl",
         "title": "Add Connection from URL",
         "category": "Florin",
-        "icon": "$(add)"
+        "icon": "$(link)"
       },
       {
         "command": "florin.refresh",
@@ -146,7 +158,7 @@
     "menus": {
       "view/title": [
         {
-          "command": "florin.addConnectionFromUrl",
+          "command": "florin.addConnection",
           "when": "view == florin.connections",
           "group": "navigation@1"
         },
@@ -179,12 +191,12 @@
       "view/item/context": [
         {
           "command": "florin.previewTable",
-          "when": "view == florin.connections && viewItem == florin.table",
+          "when": "view == florin.connections && (viewItem == florin.table || viewItem == florin.key)",
           "group": "inline"
         },
         {
           "command": "florin.previewTable",
-          "when": "view == florin.connections && viewItem == florin.table",
+          "when": "view == florin.connections && (viewItem == florin.table || viewItem == florin.key)",
           "group": "0_preview@1"
         },
         {
@@ -194,28 +206,33 @@
         },
         {
           "command": "florin.newQuery",
-          "when": "view == florin.connections && (viewItem == florin.connection || viewItem == florin.database)",
+          "when": "view == florin.connections && (viewItem == florin.connection || viewItem == florin.database || viewItem == florin.keyspace)",
           "group": "inline@1"
         },
         {
-          "command": "florin.renameConnection",
+          "command": "florin.editConnection",
           "when": "view == florin.connections && viewItem == florin.connection",
           "group": "inline@2"
         },
         {
           "command": "florin.newQuery",
-          "when": "view == florin.connections && (viewItem == florin.connection || viewItem == florin.database)",
+          "when": "view == florin.connections && (viewItem == florin.connection || viewItem == florin.database || viewItem == florin.keyspace)",
           "group": "1_query@1"
         },
         {
-          "command": "florin.renameConnection",
+          "command": "florin.editConnection",
           "when": "view == florin.connections && viewItem == florin.connection",
           "group": "1_manage@1"
         },
         {
-          "command": "florin.deleteConnection",
+          "command": "florin.renameConnection",
           "when": "view == florin.connections && viewItem == florin.connection",
           "group": "1_manage@2"
+        },
+        {
+          "command": "florin.deleteConnection",
+          "when": "view == florin.connections && viewItem == florin.connection",
+          "group": "1_manage@3"
         },
         {
           "command": "florin.renameQueryItem",
@@ -250,6 +267,7 @@
     "prepare": "husky"
   },
   "dependencies": {
+    "ioredis": "^5.11.1",
     "pg": "^8.13.0"
   },
   "devDependencies": {

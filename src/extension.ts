@@ -5,6 +5,7 @@ import { ConnectionStore, Connection } from './store';
 import { ExplorerProvider } from './tree';
 import { QueriesProvider } from './queriesTree';
 import { QueryConsole } from './console';
+import { ConnectionEditor } from './connectionEditor';
 import { Vault } from './vault';
 import type { FlorinNode } from './drivers/types';
 
@@ -20,9 +21,10 @@ interface QueryItem {
 export function activate(context: vscode.ExtensionContext) {
   const vault = new Vault();
   const store = new ConnectionStore(context, vault);
-  const explorer = new ExplorerProvider(store);
+  const explorer = new ExplorerProvider(store, context.extensionUri);
   const queries = new QueriesProvider(vault);
   const queryConsole = QueryConsole.get(store, vault, context.extensionUri);
+  const connectionEditor = ConnectionEditor.get(store, () => explorer.refresh());
 
   const refreshFromVault = async () => {
     await store.loadFromVault();
@@ -34,6 +36,8 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.window.registerTreeDataProvider('florin.connections', explorer),
     vscode.window.registerTreeDataProvider('florin.queries', queries),
     vscode.commands.registerCommand('florin.addConnectionFromUrl', () => addConnectionFromUrl(store, explorer)),
+    vscode.commands.registerCommand('florin.addConnection', () => connectionEditor.openAdd()),
+    vscode.commands.registerCommand('florin.editConnection', (node: FlorinNode) => connectionEditor.openEdit(node)),
     vscode.commands.registerCommand('florin.refresh', () => refreshFromVault()),
     vscode.commands.registerCommand('florin.refreshQueries', () => queries.refresh()),
     vscode.commands.registerCommand('florin.openQueryItem', (node: { sql?: string }) => queryConsole.openWithSql(node?.sql ?? '')),
@@ -46,6 +50,22 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('florin.openSavedQuery', () => queryConsole.openSaved()),
     vscode.commands.registerCommand('florin.configureVault', () => configureVault(context, store, explorer, vault)),
   );
+
+  // Our webviews hold no restorable state (the connection target lives in memory),
+  // so after a window reload VS Code would otherwise keep a dead, non-interactive
+  // tab around. Register serializers that close those stale panels, so reopening
+  // from the tree always gets a fresh, live webview.
+  if (typeof vscode.window.registerWebviewPanelSerializer === 'function') {
+    const disposeStale: vscode.WebviewPanelSerializer = {
+      async deserializeWebviewPanel(panel: vscode.WebviewPanel) {
+        panel.dispose();
+      },
+    };
+    context.subscriptions.push(
+      vscode.window.registerWebviewPanelSerializer('florin.console', disposeStale),
+      vscode.window.registerWebviewPanelSerializer('florin.connectionEditor', disposeStale),
+    );
+  }
 
   // Adopt the vault at startup; otherwise prompt once (ever) for setup.
   if (vault.configured) {
@@ -257,14 +277,19 @@ async function addConnectionFromUrl(store: ConnectionStore, explorer: ExplorerPr
     return;
   }
 
+  const proto = url.protocol.replace(':', '');
+  const isRedis = proto === 'redis' || proto === 'rediss';
+  const sslmode = url.searchParams.get('sslmode');
+  const database = decodeURIComponent(url.pathname.slice(1)) || (isRedis ? '0' : '');
   const conn: Connection = {
     id: randomUUID(),
-    name: `${url.username}@${url.hostname}/${url.pathname.slice(1)}`,
-    driver: url.protocol.replace(':', ''),
+    name: `${url.username}@${url.hostname}/${database}`,
+    driver: proto,
     host: url.hostname,
-    port: url.port ? Number(url.port) : 5432,
-    database: decodeURIComponent(url.pathname.slice(1)),
+    port: url.port ? Number(url.port) : isRedis ? 6379 : 5432,
+    database,
     user: decodeURIComponent(url.username),
+    ssl: proto === 'rediss' ? true : !!sslmode && sslmode !== 'disable',
   };
   const password = decodeURIComponent(url.password);
 

@@ -89,6 +89,10 @@ export class PgDriver implements Driver {
     return map;
   }
 
+  async test(): Promise<void> {
+    await this.withClient(this.conn.database, (client) => client.query('SELECT 1'));
+  }
+
   private async exec(client: Client, sql: string, params: unknown[] = []): Promise<QueryResult> {
     const res = await client.query({ text: sql, values: params, rowMode: 'array' });
     const columns = res.fields.map((f) => f.name);
@@ -103,7 +107,10 @@ export class PgDriver implements Driver {
       user: this.conn.user,
       password: this.password,
       database,
-      ssl: false,
+      // ENCRYPTED_ONLY servers (e.g. Cloud SQL over WARP) reject plaintext.
+      // rejectUnauthorized:false = encrypt without verifying the CA (no client
+      // cert needed), which is the common managed-DB case.
+      ssl: this.conn.ssl ? { rejectUnauthorized: false } : false,
       connectionTimeoutMillis: 8000,
       statement_timeout: 15000,
     });

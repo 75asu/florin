@@ -11,6 +11,10 @@ export interface Connection {
   port: number;
   database: string;
   user: string;
+  // Connect over TLS. true -> pg `ssl: { rejectUnauthorized: false }` (encrypt,
+  // don't verify the CA), which is what a Cloud SQL ENCRYPTED_ONLY instance
+  // needs when there's no client cert. Absent/false -> no TLS.
+  ssl?: boolean;
 }
 
 // The globalState key we persist connections under. We opt this key into
@@ -44,6 +48,28 @@ export class ConnectionStore {
     if (this.vault.configured) {
       await this.vault.writeConnection(conn);
       this.vault.scheduleSync(`florin: add connection ${conn.name}`);
+    }
+  }
+
+  // Upsert an edited connection by id. `password` semantics:
+  //   undefined -> leave the stored secret untouched (user left the field blank)
+  //   string    -> overwrite it (including "" to set an empty password)
+  // Falls back to add() if the id isn't known yet.
+  async update(conn: Connection, password?: string): Promise<void> {
+    const conns = this.all();
+    const idx = conns.findIndex((c) => c.id === conn.id);
+    if (idx === -1) {
+      await this.add(conn, password ?? '');
+      return;
+    }
+    conns[idx] = conn;
+    await this.context.globalState.update(CONNECTIONS_KEY, conns);
+    if (password !== undefined) {
+      await this.context.secrets.store(this.pwKey(conn.id), password);
+    }
+    if (this.vault.configured) {
+      await this.vault.writeConnection(conn);
+      this.vault.scheduleSync(`florin: update connection ${conn.name}`);
     }
   }
 

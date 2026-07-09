@@ -2,19 +2,37 @@
 // later) maps its own hierarchy onto these node kinds. The tree just asks a
 // driver "what are the children of this node?" and never knows the engine.
 
+// SQL engines use connection -> database -> schema -> table -> column.
+// Redis maps onto its own kinds: connection -> keyspace (logical DB) ->
+// keyprefix (':'-delimited folder) -> key. The tree code stays engine-agnostic;
+// each driver decides what a node's children are.
 // 'message' is a synthetic leaf used to surface errors (e.g. a dropped tunnel)
 // inline in the tree instead of silently showing an empty node.
-export type NodeKind = 'connection' | 'database' | 'schema' | 'table' | 'column' | 'message';
+export type NodeKind =
+  | 'connection'
+  | 'database'
+  | 'schema'
+  | 'table'
+  | 'column'
+  | 'keyspace'
+  | 'keyprefix'
+  | 'key'
+  | 'message';
 
 export interface FlorinNode {
   kind: NodeKind;
   label: string;
   connectionId: string;
   // Path context, filled in as we descend. A column node carries all of them.
+  // For Redis, `database` holds the logical DB index (e.g. "0").
   database?: string;
   schema?: string;
   table?: string;
-  // Right-aligned hint in the tree (column type, "view", etc.).
+  // Redis: the accumulated key prefix of a folder (e.g. "user:") and the full
+  // key name of a leaf key node.
+  prefix?: string;
+  key?: string;
+  // Right-aligned hint in the tree (column type, "view", key count, etc.).
   detail?: string;
 }
 
@@ -38,4 +56,7 @@ export interface Driver {
   runScript(database: string, statements: string[]): Promise<QueryResult>;
   // Full table+column map of a database, for autocomplete.
   schema(database: string): Promise<SchemaMap>;
+  // Open a connection and run a trivial query to prove host/port/creds/ssl work.
+  // Throws (with a describeError-able error) if it can't connect.
+  test(): Promise<void>;
 }

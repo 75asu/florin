@@ -17,14 +17,20 @@ interface Target {
   database: string;
 }
 
-// A single Beekeeper-style console: SQL editor on top, results grid below, in
-// one webview. Preview and New Query both drive it.
+// One open console panel bound to its own target. A new Session (and panel) is
+// created per New Query / preview, so consoles don't clobber each other.
+interface Session {
+  panel: vscode.WebviewPanel;
+  target: Target;
+}
+
+// A Beekeeper-style console: SQL editor on top, results grid below. Each New
+// Query / preview opens its OWN webview panel bound to its own target, so you
+// can work across connections and locations in parallel.
 export class QueryConsole {
   private static instance: QueryConsole | undefined;
-  private panel: vscode.WebviewPanel | undefined;
-  private target: Target | undefined;
   // Cache the table/column map per connection+database so autocomplete is instant
-  // after the first fetch.
+  // after the first fetch, shared across panels.
   private schemaCache = new Map<string, SchemaMap>();
 
   private constructor(
@@ -40,26 +46,51 @@ export class QueryConsole {
     return QueryConsole.instance;
   }
 
-  // Open bound to a connection/database node with an empty editor.
+  // Open a fresh console bound to a connection/database node with an empty editor.
   async openForNode(node?: FlorinNode): Promise<void> {
     const target = node ? this.targetFromNode(node) : await this.pickTarget();
     if (!target) {
       return;
     }
-    this.reveal(target, { seedSql: '', autoRun: false });
+    this.open(target, { seedSql: '', autoRun: false });
   }
 
-  // Open pre-filled with a SELECT for a table node and run it immediately.
+  // Preview a leaf node: a SQL table (seed + run a SELECT) or a Redis key (read
+  // its value straight into the grid, no SQL). Each opens its own panel.
   async openPreview(node: FlorinNode): Promise<void> {
-    if (node.kind !== 'table') {
-      return;
-    }
     const target = this.targetFromNode(node);
     if (!target) {
       return;
     }
-    const sql = `SELECT * FROM ${quoteIdent(node.schema!)}.${quoteIdent(node.table!)} LIMIT 100;`;
-    this.reveal(target, { seedSql: sql, autoRun: true });
+    if (node.kind === 'table') {
+      const sql = `SELECT * FROM ${quoteIdent(node.schema!)}.${quoteIdent(node.table!)} LIMIT 100;`;
+      this.open(target, { seedSql: sql, autoRun: true });
+    } else if (node.kind === 'key') {
+      await this.previewKey(node, target);
+    }
+  }
+
+  // Redis: open a console (empty editor, so the user can run raw commands) and
+  // render the key's value into the results grid.
+  private async previewKey(node: FlorinNode, target: Target): Promise<void> {
+    const session = this.open(target, { seedSql: '', autoRun: false });
+    const conn = this.store.get(target.connectionId);
+    if (!conn) {
+      return;
+    }
+    this.post(session, { type: 'running' });
+    try {
+      const driver = getDriver(conn, await this.store.password(conn.id));
+      const result = await driver.preview(node, DISPLAY_CAP);
+      this.post(session, {
+        type: 'result',
+        columns: result.columns,
+        rows: result.rows.slice(0, DISPLAY_CAP),
+        note: `${node.key} , ${result.rowCount} row(s)`,
+      });
+    } catch (err) {
+      this.post(session, { type: 'error', ...describeError(err) });
+    }
   }
 
   private targetFromNode(node: FlorinNode): Target | undefined {
@@ -68,6 +99,11 @@ export class QueryConsole {
       return undefined;
     }
     return { connectionId: conn.id, connName: conn.name, database: node.database ?? conn.database };
+  }
+
+  private engineOf(target: Target): 'redis' | 'sql' {
+    const conn = this.store.get(target.connectionId);
+    return conn && isRedisDriver(conn.driver) ? 'redis' : 'sql';
   }
 
   private async pickTarget(): Promise<Target | undefined> {
@@ -83,26 +119,42 @@ export class QueryConsole {
     return pick ? { connectionId: pick.c.id, connName: pick.c.name, database: pick.c.database } : undefined;
   }
 
-  private reveal(target: Target, opts: { seedSql: string; autoRun: boolean }): void {
-    this.target = target;
-    const panel = this.ensurePanel();
+  // Create a brand-new panel bound to `target` and return its Session. Each call
+  // is independent, so many consoles can be open at once across connections.
+  private open(target: Target, opts: { seedSql: string; autoRun: boolean }): Session {
+    const panel = vscode.window.createWebviewPanel(
+      'florin.console',
+      `Florin · ${target.connName}`,
+      vscode.ViewColumn.Active,
+      {
+        enableScripts: true,
+        retainContextWhenHidden: true,
+        localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, 'media')],
+      },
+    );
+    panel.webview.html = this.html(panel.webview);
+    const session: Session = { panel, target };
+    panel.webview.onDidReceiveMessage((msg: { type: string; sql?: string }) => this.onMessage(session, msg));
     panel.reveal(vscode.ViewColumn.Active, false);
-    panel.webview.postMessage({
+    this.post(session, {
       type: 'setTarget',
       label: `${target.connName} · ${target.database}`,
       seedSql: opts.seedSql,
       autoRun: opts.autoRun,
+      engine: this.engineOf(target),
     });
-    void this.sendSchema(target);
+    void this.sendSchema(session);
+    return session;
   }
 
-  // Fetch (and cache) the DB's table/column map and hand it to the editor for
-  // autocomplete. Best-effort: failure just means keyword-only completion.
-  private async sendSchema(target: Target): Promise<void> {
+  // Fetch (and cache) the DB's table/column map and hand it to this panel's editor
+  // for autocomplete. Best-effort: failure just means keyword-only completion.
+  private async sendSchema(session: Session): Promise<void> {
+    const { target } = session;
     const key = `${target.connectionId}:${target.database}`;
     const cached = this.schemaCache.get(key);
     if (cached) {
-      this.post({ type: 'schema', schema: cached });
+      this.post(session, { type: 'schema', schema: cached });
       return;
     }
     const conn = this.store.get(target.connectionId);
@@ -113,37 +165,16 @@ export class QueryConsole {
       const driver = getDriver(conn, await this.store.password(conn.id));
       const schema = await driver.schema(target.database);
       this.schemaCache.set(key, schema);
-      if (this.target?.connectionId === target.connectionId && this.target?.database === target.database) {
-        this.post({ type: 'schema', schema });
-      }
+      this.post(session, { type: 'schema', schema });
     } catch {
       /* keyword-only completion is fine */
     }
   }
 
-  private ensurePanel(): vscode.WebviewPanel {
-    if (this.panel) {
-      return this.panel;
-    }
-    const panel = vscode.window.createWebviewPanel('florin.console', 'Florin Query', vscode.ViewColumn.Active, {
-      enableScripts: true,
-      retainContextWhenHidden: true,
-      localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, 'media')],
-    });
-    panel.webview.html = this.html(panel.webview);
-    panel.webview.onDidReceiveMessage((msg: { type: string; sql?: string }) => this.onMessage(msg));
-    panel.onDidDispose(() => {
-      this.panel = undefined;
-      this.target = undefined;
-    });
-    this.panel = panel;
-    return panel;
-  }
-
   // Save the current editor SQL into the vault: overwrite an existing query, or
   // create a new one. saveQuery writes to the same path for the same group/name,
   // so picking an existing entry updates it in place.
-  private async saveCurrent(sql: string): Promise<void> {
+  private async saveCurrent(session: Session, sql: string): Promise<void> {
     if (!sql.trim()) {
       return;
     }
@@ -183,7 +214,7 @@ export class QueryConsole {
     if (choice.mode === 'new' || !choice.group || !choice.name) {
       const g = await vscode.window.showInputBox({
         title: 'Save Query , group',
-        value: this.target?.connName ?? 'scratch',
+        value: session.target.connName ?? 'scratch',
         prompt: 'Folder to file this query under',
         ignoreFocusOut: true,
       });
@@ -212,13 +243,13 @@ export class QueryConsole {
     vscode.window.showInformationMessage(`Florin: ${updating ? 'updated' : 'saved'} query "${name}".`);
   }
 
-  // Load a saved query's SQL into the console (from the Saved Queries tree).
+  // Load a saved query's SQL into a new console (from the Saved Queries tree).
   async openWithSql(sql: string): Promise<void> {
-    const target = this.target ?? (await this.pickTarget());
+    const target = await this.pickTarget();
     if (!target) {
       return;
     }
-    this.reveal(target, { seedSql: sql, autoRun: false });
+    this.open(target, { seedSql: sql, autoRun: false });
   }
 
   // Pick a saved query from the vault and load it into the console editor.
@@ -239,40 +270,38 @@ export class QueryConsole {
     if (!pick) {
       return;
     }
-    const target = this.target ?? (await this.pickTarget());
+    const target = await this.pickTarget();
     if (!target) {
       return;
     }
-    this.reveal(target, { seedSql: pick.q.sql, autoRun: false });
+    this.open(target, { seedSql: pick.q.sql, autoRun: false });
   }
 
-  private async onMessage(msg: { type: string; sql?: string }): Promise<void> {
-    if (!this.panel) {
-      return;
-    }
+  private async onMessage(session: Session, msg: { type: string; sql?: string }): Promise<void> {
     if (msg.type === 'save') {
-      await this.saveCurrent((msg.sql ?? '').trim());
+      await this.saveCurrent(session, (msg.sql ?? '').trim());
       return;
     }
     if (msg.type !== 'run') {
       return;
     }
     const sql = (msg.sql ?? '').trim();
-    const target = this.target;
-    if (!sql || !target) {
-      return;
-    }
-    const statements = splitStatements(sql);
-    if (statements.length === 0) {
+    const target = session.target;
+    if (!sql) {
       return;
     }
     const conn = this.store.get(target.connectionId);
     if (!conn) {
-      this.post({ type: 'error', message: 'Connection no longer exists.' });
+      this.post(session, { type: 'error', message: 'Connection no longer exists.' });
+      return;
+    }
+    // Redis commands are one-per-line (no ';'); SQL splits on statement boundaries.
+    const statements = isRedisDriver(conn.driver) ? splitCommands(sql) : splitStatements(sql);
+    if (statements.length === 0) {
       return;
     }
 
-    this.post({ type: 'running' });
+    this.post(session, { type: 'running' });
     try {
       const driver = getDriver(conn, await this.store.password(conn.id));
       const result = await driver.runScript(target.database, statements);
@@ -284,19 +313,19 @@ export class QueryConsole {
           : capped
             ? `showing first ${DISPLAY_CAP} of ${result.rowCount} rows`
             : `${result.rowCount} row(s)`;
-      this.post({
+      this.post(session, {
         type: 'result',
         columns: result.columns,
         rows: capped ? result.rows.slice(0, DISPLAY_CAP) : result.rows,
         note: prefix + tail,
       });
     } catch (err) {
-      this.post({ type: 'error', ...describeError(err) });
+      this.post(session, { type: 'error', ...describeError(err) });
     }
   }
 
-  private post(message: unknown): void {
-    this.panel?.webview.postMessage(message);
+  private post(session: Session, message: unknown): void {
+    session.panel.webview.postMessage(message);
   }
 
   private html(webview: vscode.Webview): string {
@@ -405,6 +434,7 @@ export class QueryConsole {
   const $ = (id) => document.getElementById(id);
   const runBtn = $('run'), saveBtn = $('save'), formatBtn = $('format'), results = $('results'), status = $('status'), target = $('target');
   const editorEl = $('editor'), splitter = $('splitter');
+  let engine = 'sql'; // 'sql' | 'redis' , set per connection on setTarget
 
   // CodeMirror editor (schema-aware SQL). Falls back gracefully if it fails to load.
   const stmtsEl = $('stmts');
@@ -421,7 +451,28 @@ export class QueryConsole {
   }
   runBtn.addEventListener('click', run);
   saveBtn.addEventListener('click', () => vscode.postMessage({ type: 'save', sql: ed.getValue() }));
+  // Redis commands don't have a grammar to pretty-print; "format" means tidy each
+  // line , uppercase the command verb, trim, drop blank lines , keeping args verbatim.
+  function formatRedis() {
+    const out = ed.getValue()
+      .split(/\\r?\\n/)
+      .map((line) => {
+        const t = line.trim();
+        if (!t || t.startsWith('#')) return t;
+        const i = t.indexOf(' ');
+        return i === -1 ? t.toUpperCase() : t.slice(0, i).toUpperCase() + ' ' + t.slice(i + 1).trim();
+      })
+      .filter((l, idx, arr) => l !== '' || (idx > 0 && arr[idx - 1] !== ''))
+      .join('\\n');
+    ed.setValue(out);
+  }
+
   formatBtn.addEventListener('click', () => {
+    if (engine === 'redis') {
+      formatRedis();
+      status.textContent = 'Formatted';
+      return;
+    }
     try {
       ed.format();
       status.textContent = 'Formatted';
@@ -466,6 +517,7 @@ export class QueryConsole {
     const m = ev.data;
     if (m.type === 'setTarget') {
       target.textContent = m.label;
+      engine = m.engine || 'sql';
       if (m.seedSql) ed.setValue(m.seedSql);
       if (m.autoRun) run();
       ed.focus();
@@ -503,4 +555,16 @@ export class QueryConsole {
 
 function quoteIdent(name: string): string {
   return `"${name.replace(/"/g, '""')}"`;
+}
+
+function isRedisDriver(driver?: string): boolean {
+  return driver === 'redis' || driver === 'rediss';
+}
+
+// Redis: one command per line, dropping blanks and '#' comments. No ';' splitting.
+function splitCommands(input: string): string[] {
+  return input
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0 && !l.startsWith('#'));
 }
