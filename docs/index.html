@@ -4,13 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>florin — a portable database workbench</title>
-  <meta name="description" content="Your database connections and query library follow you across machines, envs, and jobs — in a git-backed vault you own. Passwords stay in the OS keychain, never synced. A VS Code extension." />
+  <meta name="description" content="Your Postgres and Redis connections and query library follow you across machines, envs, and jobs, in a git-backed vault you own. Passwords stay in the OS keychain, never synced. A VS Code extension." />
   <link rel="canonical" href="https://75asu.github.io/florin" />
   <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />
   <meta property="og:site_name" content="florin" />
   <meta property="og:type" content="website" />
   <meta property="og:title" content="florin — a portable database workbench" />
-  <meta property="og:description" content="Your database connections and query library follow you across machines, envs, and jobs — in a git-backed vault you own. Passwords stay in the OS keychain, never synced." />
+  <meta property="og:description" content="Your Postgres and Redis connections and query library follow you across machines, envs, and jobs, in a git-backed vault you own. Passwords stay in the OS keychain, never synced." />
   <meta property="og:url" content="https://75asu.github.io/florin" />
   <meta property="og:image" content="https://75asu.github.io/florin/og.png" />
   <meta property="og:image:width" content="1200" />
@@ -18,7 +18,7 @@
   <meta property="og:locale" content="en_US" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="florin — a portable database workbench" />
-  <meta name="twitter:description" content="Your database connections and query library follow you across machines, envs, and jobs — in a git-backed vault you own. Passwords stay in the OS keychain, never synced." />
+  <meta name="twitter:description" content="Your Postgres and Redis connections and query library follow you across machines, envs, and jobs, in a git-backed vault you own. Passwords stay in the OS keychain, never synced." />
   <meta name="twitter:image" content="https://75asu.github.io/florin/og.png" />
 
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='none' stroke='%23bf8f2c' stroke-width='6'/><circle cx='50' cy='50' r='27' fill='none' stroke='%23bf8f2c' stroke-width='3'/><path d='M56 34h-6c-4 0-6 2-6 6v26 M40 50h16' stroke='%23bf8f2c' stroke-width='5' fill='none' stroke-linecap='round'/></svg>" />
@@ -253,20 +253,28 @@
         <div class="cell-d">Connections + a saved-query library as plain files in a repo you choose. Debounced auto commit + push, pull on focus. Versioned, portable, yours.</div>
       </div>
       <div class="cell">
+        <div class="cell-t"><span class="mark">&#9679;</span> Postgres and Redis</div>
+        <div class="cell-d">One workbench, two engines. Postgres schemas and Redis keyspaces side by side, each connection drawn with its own engine logo so you always know which is which.</div>
+      </div>
+      <div class="cell">
+        <div class="cell-t"><span class="mark">&#9679;</span> Connection editor</div>
+        <div class="cell-d">A real form to add or edit a connection , host, port, database, user, TLS , with a one-click Test before you save. No more popup prompts.</div>
+      </div>
+      <div class="cell">
         <div class="cell-t"><span class="mark">&#9679;</span> Add connection from URL</div>
-        <div class="cell-d">Paste <code>postgresql://…</code> and go , the step other clients bury behind a form.</div>
+        <div class="cell-d">Paste <code>postgresql://…</code> or <code>redis://…</code> and go , the step other clients bury behind a form.</div>
       </div>
       <div class="cell">
         <div class="cell-t"><span class="mark">&#9679;</span> Query console</div>
-        <div class="cell-d">CodeMirror editor with schema-aware autocomplete, keyword formatting, a resizable results grid, and multi-statement transactional runs.</div>
+        <div class="cell-d">Schema-aware SQL autocomplete and formatting, raw commands for Redis, a resizable results grid, and a fresh tab per query so consoles never clobber each other.</div>
       </div>
       <div class="cell">
         <div class="cell-t"><span class="mark">&#9679;</span> Saved-query library</div>
         <div class="cell-d">A Postman-style tree of folders and queries. Click to load, rename, delete, save-or-overwrite , a collection you keep.</div>
       </div>
       <div class="cell">
-        <div class="cell-t"><span class="mark">&#9679;</span> Browse the schema</div>
-        <div class="cell-d">Connection &rarr; database &rarr; schema &rarr; table &rarr; columns, with live status icons and real error messages, never a blank bar.</div>
+        <div class="cell-t"><span class="mark">&#9679;</span> Browse everything</div>
+        <div class="cell-d">Postgres down to typed columns; Redis down to keys via prefix folders, with a per-type value preview. Live status, real error messages, never a blank bar.</div>
       </div>
       <div class="cell">
         <div class="cell-t"><span class="mark">&#9679;</span> Passwords in the keychain</div>
@@ -288,7 +296,7 @@
       </div>
       <div class="frow">
         <div class="frow-k">The engine</div>
-        <div class="frow-v">an engine-agnostic <span class="hi">Driver</span> interface (Postgres today), in-process , no language server. esbuild bundles it into a self-contained <code>.vsix</code>.</div>
+        <div class="frow-v">an engine-agnostic <span class="hi">Driver</span> interface (Postgres and Redis today), in-process , no language server. esbuild bundles it into a self-contained <code>.vsix</code>.</div>
       </div>
     </div>
 
